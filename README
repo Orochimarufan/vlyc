@@ -1,0 +1,4 @@
+DEPENDENCIES:
+- lxml (http://www.lxml.de/)
+- libyo (http://github.com/Orochimarufan/libyo)
+- python 3.2+
