@@ -13,17 +13,26 @@ from libyo.util.choice import cichoice, qchoice, switchchoice;
 from libyo.util.util import listreplace_s as lreplace;
 from libyo.util.pretty import fillA, fillP;
 from libyo.xspf.XspfObject import XspfObject;
-from argparse import ArgumentParser,RawTextHelpFormatter;
+from libyo.argparse import ArgumentParser, RawTextHelpFormatter, LibyoArgumentParser, ArgumentParserExit;
 import tempfile;
 import shlex;
 import os;
 import subprocess;
 import copy;
-import readline;
+try:
+    import readline;
+except ImportError:
+    HAS_READLINE=False
+else:
+    HAS_READLINE=True
+import string;
+valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
 
 input = compat.getModule("util").input; #@ReservedAssignment
 
 AFP_VERSION="1.99.1b";
+
+tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
 
 def welcome():
     print("AntiFlashPlayer for YouTube v{0} (libYo v{1})".format(AFP_VERSION,LIBYO_VERSION));
@@ -128,6 +137,8 @@ def process(args):
         xspf = XspfObject.new(video_info.title);
         track = xspf.newTrack(video_info.title,video_info.uploader,url);
         track.setAnnotation(video_info.description);
+        track.setThumbnail(video_info.thumbnail["hqDefault"]);
+        track.setInfo("http://www.youtube.com/watch?v={0}".format(video_info.video_id));
         xspf.addTrack(track);
         temp = tempfile.NamedTemporaryFile(suffix=".xspf",prefix="afp_");
         xspf.toFile_c14n(temp.file);
@@ -137,7 +148,9 @@ def process(args):
             print("XSPF Filename: "+fn)
     else:
         fn=url;
-    argv=[i.replace("\0","") for i in lreplace(shlex.split(args.command),"%u",fn)];
+    argv = shlex.split(args.command);
+    for pair in [("%u",fn),("%n",video_info.title),("%a",video_info.uploader),("%e",profiles.file_extensions[fmt]),("\0",""),("%f","{0}.{1}".format(tofilename(video_info.title),profiles.file_extensions[fmt]))]:
+        argv = lreplace(argv,*pair);
     if args.quiet:
         out_fp=open(os.devnull,"w");
     else:
@@ -148,41 +161,28 @@ def process(args):
     if args.xspf:
         temp.close();
     return 0;
-    
-class ArgumentParserExit(Exception):
-    def __init__(self,status):
-        self.status = status;
-        Exception.__init__(self,"ArgumentParser exited with status: {0}".format(status));
-class NonExitingArgumentParser(ArgumentParser):
-    def _print_message(self,message,file=None): #@ReservedAssignment
-        if not file:
-            file = sys.stdout; #@ReservedAssignment
-        file.write(message);
-    def error(self,message):
-        self.print_usage(sys.stdout);
-        self.exit(2,"{0}: error: {1}\n".format(self.prog,message));
-    def exit(self,status=0,message=None): #@ReservedAssignment
-        if message:
-            self._print_message(message, sys.stdout);
-        raise ArgumentParserExit(status);
 
 def afp_shell(args):
     my_args = copy.copy(args);
     running = True;
-    parser = NonExitingArgumentParser(prog="AFP Shell");
+    parser = LibyoArgumentParser(prog="AFP Shell",may_exit=False,autoprint_usage=False,error_handle=sys.stdout);
     parser.add_argument("id",help="VideoID / URL / literals '+exit', '+pass', '+print'", metavar="OPERATION");
     parser.add_argument("-s","--switches",dest="switches",help="Set enabled switches (u,x,f,n,v)",choices=switchchoice(["u","x","f","n","v"]),metavar="SW");
     parser.add_argument("-a","--avc",dest="avc",help="Set Profile",choices=cichoice(profiles.profiles.keys()),metavar="PROFILE");
     parser.add_argument("-q","--quality",dest="quality",help="Set Quality Level",choices=qchoice.new(1080,720,480,360,240));
     parser.add_argument("-c","--cmd",dest="command",help="set command");
-    readline.parse_and_bind("\e[1;2A: previous-history");
-    readline.parse_and_bind("\e[1;2B: next-history");
+    if HAS_READLINE:
+        readline.parse_and_bind("\eA: previous-history");
+        readline.parse_and_bind("\eB: next-history");
+    else:
+        print("WARNING: No Readline extension found. Readline functionality will NOT be available.\r\n\tIf you're on Windows you might consider PyReadline.")
     sw = None;
     while running:
         line = input("{0}> ".format(args.prog));
         try:
             parser.parse_args(shlex.split(line), my_args);
         except ArgumentParserExit:
+            print("""Use "+pass --help" to show available options""");
             continue;
         if sw != my_args.switches:
             my_args.extract_url = "u" in my_args.switches;

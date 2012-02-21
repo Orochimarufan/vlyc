@@ -13,8 +13,8 @@ except ImportError:
     from libyo.youtube.playlist import advanced as playlistFull
 from libyo.youtube.playlist import skeleton as playlistSkeleton
 from libyo.youtube.resolve.profiles import descriptions as fmtdesc, file_extensions as fmtext
-from libyo.user.progress.simple import SimpleProgress2
-from libyo.network.download import download as downloadFile
+from libyo.interface.progress.simple import SimpleProgress2
+from libyo.urllib.download import download as downloadFile
 from libyo.configparser import PcsxConfigParser
 import argparse
 import os
