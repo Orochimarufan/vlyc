@@ -30,7 +30,7 @@ valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
 
 input = compat.getModule("util").input; #@ReservedAssignment
 
-AFP_VERSION="1.99.1b";
+AFP_VERSION="1.99.2b";
 
 tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
 
@@ -137,7 +137,7 @@ def process(args):
         xspf = XspfObject.new(video_info.title);
         track = xspf.newTrack(video_info.title,video_info.uploader,url);
         track.setAnnotation(video_info.description);
-        track.setThumbnail(video_info.thumbnail["hqDefault"]);
+        track.setImage("http://s.ytimg.com/vi/{0}/default.jpg".format(video_info.video_id));
         track.setInfo("http://www.youtube.com/watch?v={0}".format(video_info.video_id));
         xspf.addTrack(track);
         temp = tempfile.NamedTemporaryFile(suffix=".xspf",prefix="afp_");

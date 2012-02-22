@@ -21,13 +21,17 @@ import os
 import json
 
 def welcome():
-    print("YouFeed v1.99.1b (libYo! v{0})".format(libyo.LIBYO_VERSION))
+    print("YouFeed v1.99.2a (libYo! v{0})".format(libyo.LIBYO_VERSION))
     print("(c) 2011-2012 Orochimarufan")
 
 def main(ARGV):
     welcome()
     parser=argparse.ArgumentParser(prog=ARGV[0])
     parser.add_argument("-j","--job",metavar="JobFileName",dest="job",default=None,help="The Filename of the job definition file to use. (default: loop through everything in jobs dir)")
+    #parser.add_argument("-n","--max",metavar="N",dest="max",default=-1,help="Max Number of Videos to download")
+    #parser.add_argument("-o","--offset",metavar="N",dest="offset",default=0,help="Skip N Videos")
+    parser.add_argument("-d","--dummy",action="store_true",dest="dummy",default=False,help="Don't download anything.")
+    parser.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
     args=parser.parse_args(ARGV[1:])
     joblist=[]
     if args.job:
@@ -42,13 +46,44 @@ def main(ARGV):
         job_name=job.getnosect("name")
         print("[ MAIN] Processing Job \"{0}\"...".format(job_name))
         job_type=job.getnosect("type").lower()
-        if job_type in ("pl","playlist"):
-            _playlist_job(job)
-        else:
-            print("YouFeed 2.0 does only support Playlist jobs as of now.")
+        
+        if not args.pl:
+            if job_type in ("pl","playlist"):
+                _playlist_job(args,job)
+            else:
+                print("YouFeed 2.0 does only support Playlist jobs as of now.")
+                continue
+        
+        if job.getnosect("createpl",False):
+            _xspf_job(args,job)
+        
     print("[ MAIN] Done. Farewell, may we meet again!")
 
-def _playlist_job(job):
+def _xspf_job(args,job):
+    xspf_file       = job.getnosect("createpl")
+    
+    if job.getnosect("type").lower() in ("pl","playlist"):
+        filename = os.path.abspath(os.path.join("pl",os.path.normpath(job.getnosect("playlist")+".plm")))
+        with open(filename) as fp:
+            meta = json.load(fp)
+        if "url" not in meta["meta"]:
+            meta["meta"]["url"]="http://youtube.com/playlist?list=PL"+job.getnosect("playlist")
+        if "playlist_id" not in meta["meta"]:
+            meta["meta"]["playlist_id"]=job.getnosect("playlist")
+        if "title" not in meta["meta"]:
+            meta["meta"]["title"]=meta["meta"]["name"]
+    try:
+        xspf_file.index(".")
+    except ValueError:
+        xspf_file   += ".xspf"
+    
+    print("[ JOB ] Creating Local Playlist: '{0}'".format(xspf_file))
+    xspf_object     = _create_xspf(meta["meta"],meta["local"],meta["downloads"])
+    
+    with open(xspf_file,"w") as fp:
+        xspf_object.writexml(fp, "", "", "", encoding="UTF-8")
+
+def _playlist_job(args,job):
     playlist_id         = job.getnosect("playlist")
     skel                = playlistSkeleton(playlist_id)
     playlist_name       = skel["data"]["title"]
@@ -56,7 +91,8 @@ def _playlist_job(job):
     playlist_file=os.path.abspath(os.path.join("pl",os.path.normpath(playlist_id+".plm")))
     if not os.path.exists(playlist_file):
         meta            = dict([
-            ("meta",dict([("name",playlist_name),("author",skel["data"]["author"]),("description",skel["data"]["description"]),("tags",list(skel["data"]["tags"]))])),
+            ("meta",dict([("name",playlist_name),("author",skel["data"]["author"]),("description",skel["data"]["description"]),
+                          ("tags",list(skel["data"]["tags"])),("playlist_id",playlist_id),("url","http://youtube.com/playlist?list=PL"+playlist_id)])),
             ("items",list()),("cache",dict()),("local",list()),("local_id",dict()),("local_title",dict()),("downloads",dict())
         ])
     else:
@@ -84,45 +120,37 @@ def _playlist_job(job):
             print("[VIDEO] Preparing to Download...",end="\r")
             url,fmt     = _recursive_resolve(video_id,fmt_list)
             print("[VIDEO] Downloading with Quality level {0}".format(fmtdesc[fmt]))
-            video       = resolve3(video_id)
-            filename    = video.title.replace("/","-").replace(" ","_")+"."+fmtext[fmt]
-            path        = playlist_target
-            fullpath    = os.path.join(path,filename)
-            progress    = SimpleProgress2()
-            progress.name = video.title
-            progress.task = "Downloading. (\x11)"
-            if len(progress.name)>20:
-                print(progress.name)
-                progress.name="Downloading"
-                progress.task="\x11"
-            downloadFile(url,fullpath,progress,2,bytecount)
-            meta["items"].append(video_id)
-            meta["local"].append(video_item)
-            idx         = meta["local"].index(video_item)
-            meta["local_id"][video_id] = idx
-            meta["local_title"][video_title] = idx
-            meta["downloads"][video_id] = {
-                                           "path": fullpath,
-                                           "location": path,
-                                           "filename": filename,
-                                           "type": fmtext[fmt],
-                                           "fmt": fmt,
-                                           "quality": fmtdesc[fmt]
-                                           }
-            with open(playlist_file,"w") as fp:
-                json.dump(meta,fp)
+            if not args.dummy:
+                video       = resolve3(video_id)
+                filename    = video.title.replace("/","-").replace(" ","_")+"."+fmtext[fmt]
+                path        = playlist_target
+                fullpath    = os.path.join(path,filename)
+                progress    = SimpleProgress2()
+                progress.name = video.title
+                progress.task = "Downloading. (\x11)"
+                if len(progress.name)>20:
+                    print(progress.name)
+                    progress.name="Downloading"
+                    progress.task="\x11"
+                downloadFile(url,fullpath,progress,2,bytecount)
+                meta["items"].append(video_id)
+                meta["local"].append(video_item)
+                idx         = meta["local"].index(video_item)
+                meta["local_id"][video_id] = idx
+                meta["local_title"][video_title] = idx
+                meta["downloads"][video_id] = {
+                                               "path": fullpath,
+                                               "location": path,
+                                               "filename": filename,
+                                               "type": fmtext[fmt],
+                                               "fmt": fmt,
+                                               "quality": fmtdesc[fmt]
+                                               }
+                with open(playlist_file,"w") as fp:
+                    json.dump(meta,fp)
+            else:
+                print("[ URL ] '{0}'".format(url))
             print("[VIDEO] Done. Moving on.")
-    if job.getnosect("createpl",False):
-        xspf_file       = job.getnosect("createpl")
-        try:
-            xspf_file.index(".")
-        except ValueError:
-            xspf_file   += ".xspf"
-        print("[ JOB ] Creating Local Playlist: '{0}'".format(xspf_file))
-        xspf_object     = _create_xspf({"title":playlist_name,"url":"http://youtube.com/playlist?list=PL"+playlist_id,
-                                  "author":playlist_author},meta["local"],meta["downloads"])
-        with open(xspf_file,"w") as fp:
-            xspf_object.writexml(fp, "", "", "", encoding="UTF-8")
             
 def _job_quality(job):
     from libyo.youtube.resolve.profiles import profiles
