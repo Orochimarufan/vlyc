@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 bytecount = 64*1024
-__VERSION__=(2,0,0,"a")
+__VERSION__=(2,0,0,"b")
 __LIBYO_R__=(0,9,7)
 
 
@@ -104,8 +104,8 @@ def _mode_run(args):
         print("[ MAIN] Unknown Job Type: "+args.job_type)
         return 1
     
-    if job.playlist:
-        job.setnosect("createpl",args.playlist)
+    if args.xspf_file:
+        job.setnosect("createpl",args.xspf_file)
         _xspf_job(args,job)
     print("[ MAIN] Done. Farewell!")
 
