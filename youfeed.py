@@ -36,11 +36,11 @@ def main(ARGV):
     subparsers=parser.add_subparsers(default="all",title="subcommands",description="Use '%(prog)s (command) -h' to get further help. By Default, the 'all' command is run.")
     parser_def=subparsers.add_parser("all",description="Do all Jobs defined in the jobs/ directory.")
     parser_def.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
-    parser_def.set_defaults(command="")
+    parser_def.set_defaults(command="",max=-1,offset=0)
     parser_job=subparsers.add_parser("job",description="Do one job defined in the jobs/ directory.")
     parser_job.add_argument("job",metavar="JobFileName",help="The Filename of the job definition file to use.")
-    parser_job.add_argument("-n","--max",metavar="N",dest="max",default=-1,help="Max Number of Videos to download")
-    parser_job.add_argument("-o","--offset",metavar="N",dest="offset",default=0,help="Skip N Videos")
+    parser_job.add_argument("-n","--max",metavar="N",dest="max",type=int,default=-1,help="Max Number of Videos to download")
+    parser_job.add_argument("-o","--offset",metavar="N",dest="offset",type=int,default=0,help="Skip N Videos")
     parser_job.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
     parser_job.set_defaults(command="job")
     parser_run=subparsers.add_parser("run",description="Do a custom job.")
@@ -48,8 +48,8 @@ def main(ARGV):
     parser_run.add_argument("job_argument",help="[playlist] The YouTube Playlist ID; [favorites] The Youtube User ID")
     parser_run.add_argument("-p","--playlist",metavar="xspf_file",dest="xspf_file",default=False,help="Create a Playlist File")
     parser_run.add_argument("-q","--quality",metavar="QA",dest="quality",default=720,type=int,help="The Quality level (360p -> 360; 720p -> 720)")
-    parser_run.add_argument("-n","--max",metavar="N",dest="max",default=-1,help="Max Number of Videos to download")
-    parser_run.add_argument("-o","--offset",metavar="N",dest="offset",default=0,help="Skip N Videos")
+    parser_run.add_argument("-n","--max",metavar="N",dest="max",default=-1,type=int,help="Max Number of Videos to download")
+    parser_run.add_argument("-o","--offset",metavar="N",dest="offset",default=0,type=int,help="Skip N Videos")
     parser_run.set_defaults(command="run")
     args=parser.parse_args(ARGV[1:])
     if "command" not in args or args.command=="":
@@ -200,8 +200,9 @@ def _playlist_job(args,job):
     print("[ JOB ] Playlist: \"{0}\" by {1}".format(playlist_name,playlist_author))
     print("[ JOB ] Synchronizing Data. Please Wait...")
     playlist            = playlistFull(playlist_id)
-    playlist_items      = playlist["data"]["items"]
+    playlist_items      = playlist["data"]["items"] 
     meta["cache"]       = playlist
+    playlist_items      = (playlist_items[args.offset:args.offset+args.max] if args.max>0 else playlist_items[args.offset:])
     for item in playlist_items:
         video_item      = item["video"]
         if video_item["id"] not in meta["items"]:
@@ -237,7 +238,8 @@ def _favorites_job(args,job):
     print("[ JOB ] Synchronizing Indexes... Please Wait.");
     fav = userobj.favorites();
     meta["cache"] = fav;
-    for item in fav["data"]["items"]:
+    items = (fav["data"]["items"][args.offset:args.offset+args.max] if args.max>0 else fav["data"]["items"][args.offset:])
+    for item in items:
         if item["video"]["id"] not in meta["items"]:
             _download(args,meta,target,fmt_list,item["video"]);
             with open(meta_file,"w") as fp:
