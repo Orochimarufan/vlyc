@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 bytecount = 64*1024
-__VERSION__=(2,0,0,"c")
+__VERSION__=(2,0,0,"d")
 __LIBYO_R__=(0,9,7)
 
 
@@ -79,7 +79,7 @@ def _mode_job(args,joblist):
         if not args.pl:
             if job_type in ("pl","playlist"):
                 _playlist_job(args,job)
-            if job_type in ("fav","favorites","favourites"):
+            elif job_type in ("fav","favorites","favourites"):
                 _favorites_job(args,job);
             else:
                 print("[ JOB ] Unknown Job Type: "+job_type)
@@ -208,16 +208,16 @@ def _playlist_job(args,job):
     print("[ JOB ] Playlist: \"{0}\" by {1}".format(playlist_name,playlist_author))
     print("[ JOB ] Synchronizing Data. Please Wait...")
     playlist            = playlistFull(playlist_id)
-    playlist_items      = playlist["data"]["items"] 
     meta["cache"]       = playlist
-    playlist_items      = (playlist_items[args.offset:args.offset+args.max] if args.max>0 else playlist_items[args.offset:])
-    for item in playlist_items:
+    items = [i for i in playlist["data"]["items"] if i["video"]["id"] not in meta["items"]]
+    items = (items[args.offset:] if args.offset>0 else items)
+    items = (items[:args.max] if args.max>0 else items)
+    for item in items:
         video_item      = item["video"]
-        if video_item["id"] not in meta["items"]:
-            _download(args,meta,playlist_target,fmt_list,video_item);
-            with open(playlist_file,"w") as fp:
-                json.dump(meta,fp)
-            print("[VIDEO] Done. Moving on.")
+        _download(args,meta,playlist_target,fmt_list,video_item);
+        with open(playlist_file,"w") as fp:
+            json.dump(meta,fp)
+        print("[VIDEO] Done. Moving on.")
     print("[ JOB ] Done!")
 
 def _favorites_job(args,job):
@@ -246,13 +246,14 @@ def _favorites_job(args,job):
     print("[ JOB ] Synchronizing Indexes... Please Wait.");
     fav = userobj.favorites();
     meta["cache"] = fav;
-    items = (fav["data"]["items"][args.offset:args.offset+args.max] if args.max>0 else fav["data"]["items"][args.offset:])
+    items = [i for i in fav["data"]["items"] if i["video"]["id"] not in meta["items"]]
+    items = (items[args.offset:] if args.offset>0 else items)
+    items = (items[:args.max] if args.max>0 else items)
     for item in items:
-        if item["video"]["id"] not in meta["items"]:
-            _download(args,meta,target,fmt_list,item["video"]);
-            with open(meta_file,"w") as fp:
-                json.dump(meta,fp);
-            print("[VIDEO] Done. Moving on.")
+        _download(args,meta,target,fmt_list,item["video"]);
+        with open(meta_file,"w") as fp:
+            json.dump(meta,fp);
+        print("[VIDEO] Done. Moving on.")
     print("[ JOB ] Done!")
 
 def _job_quality(job):
