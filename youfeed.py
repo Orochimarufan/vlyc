@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 bytecount = 64*1024
-__VERSION__=(2,0,0,"e")
+__VERSION__=(2,0,0,"f")
 __LIBYO_R__=(0,9,7)
 
 
@@ -127,6 +127,8 @@ def _xspf_job(args,job):
         filename=os.path.abspath(os.path.join("pl",os.path.normpath(job.getnosect("user")+".ytfav")))
         with open(filename) as fp:
             meta = json.load(fp)
+        if "title" not in meta["meta"]:
+            meta["meta"]["title"]=meta["meta"]["name"]
     else:
         print("[ XSPF] Cannot handle Jobtype: "+job.getnosect("type"))
         return 1
