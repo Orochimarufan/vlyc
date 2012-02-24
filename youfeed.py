@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 bytecount = 64*1024
-__VERSION__=(2,0,0,"d")
+__VERSION__=(2,0,0,"e")
 __LIBYO_R__=(0,9,7)
 
 
@@ -222,8 +222,9 @@ def _playlist_job(args,job):
 
 def _favorites_job(args,job):
     userobj = User(job.getnosect("user"));
-    skel    = userobj.favorites_skeleton();
-    user    = skel["data"]["items"][0]["author"];
+    #skel    = userobj.favorites_skeleton();
+    #user    = skel["data"]["items"][0]["author"]; #broken? (*dummy*)
+    user    = job.getnosect("user")
     meta_file=os.path.abspath(os.path.join("pl",os.path.normpath(user+".ytfav")));
     if not os.path.exists(meta_file):
         meta = dict([
