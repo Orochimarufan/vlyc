@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 bytecount = 64*1024
-__VERSION__=(2,0,0,"b")
+__VERSION__=(2,0,0,"c")
 __LIBYO_R__=(0,9,7)
 
 
@@ -93,6 +93,7 @@ def _mode_job(args,joblist):
 def _mode_run(args):
     job = RawPcsxConfigParser()
     job.setnosect("name","Explicit Job")
+    job.setnosect("type",args.job_type)
     job.setnosect("quality",args.quality)
     if args.job_type in ("pl","playlist"):
         job.setnosect("playlist",args.job_argument)
@@ -122,6 +123,13 @@ def _xspf_job(args,job):
             meta["meta"]["playlist_id"]=job.getnosect("playlist")
         if "title" not in meta["meta"]:
             meta["meta"]["title"]=meta["meta"]["name"]
+    elif job.getnosect("type").lower() in ("fav","favorites","favourites"):
+        filename=os.path.abspath(os.path.join("pl",os.path.normpath(job.getnosect("user")+".ytfav")))
+        with open(filename) as fp:
+            meta = json.load(fp)
+    else:
+        print("[ XSPF] Cannot handle Jobtype: "+job.getnosect("type"))
+        return 1
     try:
         xspf_file.index(".")
     except ValueError:
