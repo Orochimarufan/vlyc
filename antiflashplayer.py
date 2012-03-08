@@ -8,7 +8,8 @@ Created on 01.02.2012
 from __future__ import absolute_import,print_function,unicode_literals;
 from libyo import LIBYO_VERSION, compat;
 from libyo.youtube.resolve import profiles, resolve3;
-from libyo.youtube.url import id_from_url;
+from libyo.youtube.url import getIdFromUrl;
+from libyo.youtube.exception import YouTubeException, YouTubeResolveError;
 from libyo.util.choice import cichoice, qchoice, switchchoice;
 from libyo.util.util import listreplace_s as lreplace;
 from libyo.util.pretty import fillA, fillP;
@@ -30,13 +31,18 @@ valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
 
 input = compat.getModule("util").input; #@ReservedAssignment
 
-AFP_VERSION="1.99.2b";
+__VERSION__=(1,99,3,"");
+__LIBYO_R__=(0,9,8);
 
 tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
 
 def welcome():
-    print("AntiFlashPlayer for YouTube v{0} (libYo v{1})".format(AFP_VERSION,LIBYO_VERSION));
+    print("AntiFlashPlayer for YouTube v{1}.{2}.{3}{4} (libYo v{0})".format(LIBYO_VERSION,*__VERSION__));
     print("(c) 2011-2012 by Orochimarufan");
+    from libyo.version import Version
+    Version._libyo_version().fancyRequireVersion(__LIBYO_R__)
+    if not Version._python_version().minVersion(3,2):
+        print("WARNING: Running on Python < 3.2 is not fully tested!")
     print();
 
 def main_argv(argv):
@@ -101,7 +107,11 @@ def internal_cmd(args):
 def process(args):
     if args.extract_url:
         args.url=args.id;
-        args.id=id_from_url(args.url);
+        try:
+            args.id=getIdFromUrl(args.url);
+        except AttributeError:
+            print("ERROR: invalid URL")
+            return
     fmt_map = profiles.profiles[cichoice.unify(args.avc)][0];
     if args.fmt is None and not args.force:
         fmt_request   = [fmt_map[i] for i in (1080,720,480,360,240) if i in fmt_map and i<=qchoice.unify(args.quality)];
@@ -176,7 +186,7 @@ def afp_shell(args):
         readline.parse_and_bind("\eB: next-history");
     else:
         print("WARNING: No Readline extension found. Readline functionality will NOT be available.\r\n\tIf you're on Windows you might consider PyReadline.")
-    sw = None;
+    sw = my_args.switches = ("u" if args.extract_url else "")+("x" if args.xspf else "")+("f" if args.force else"")+("n" if not args.quiet else "")+("v" if args.verbose else "");
     while running:
         line = input("{0}> ".format(args.prog));
         try:
@@ -200,9 +210,10 @@ def afp_shell(args):
             running = False;
             break;
         else:
-            x = process(my_args);
-            if x!=0:
-                pass;
+            try:
+                process(my_args);
+            except YouTubeException:
+                print(sys.exc_info()[1]);
     #end while
     return 0;
 
