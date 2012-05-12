@@ -6,6 +6,7 @@ Created on 01.02.2012
 '''
 
 from __future__ import absolute_import,print_function,unicode_literals;
+
 from libyo import LIBYO_VERSION, compat;
 from libyo.youtube.resolve import profiles, resolve3;
 from libyo.youtube.url import getIdFromUrl;
@@ -15,33 +16,40 @@ from libyo.util.util import listreplace_s as lreplace;
 from libyo.util.pretty import fillA, fillP;
 from libyo.xspf.XspfObject import XspfObject;
 from libyo.argparse import ArgumentParser, RawTextHelpFormatter, LibyoArgumentParser, ArgumentParserExit;
+
 import tempfile;
 import shlex;
 import os;
 import subprocess;
 import copy;
+import platform;
+import string;
+
 try:
     import readline;
 except ImportError:
     HAS_READLINE=False
 else:
     HAS_READLINE=True
-import string;
-valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
 
+valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
 input = compat.getModule("util").input; #@ReservedAssignment
 
-__VERSION__=(1,99,3,"");
-__LIBYO_R__=(0,9,8);
+__VERSION__=(1,99,5,"");
+__LIBYO_R__=(0,9,9,"x");
 
 tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
+firstkey = lambda i: next(iter(i))
+
+WINSX = platform.system()=="Windows";
 
 def welcome():
     print("AntiFlashPlayer for YouTube v{1}.{2}.{3}{4} (libYo v{0})".format(LIBYO_VERSION,*__VERSION__));
     print("(c) 2011-2012 by Orochimarufan");
     from libyo.version import Version
-    Version._libyo_version().fancyRequireVersion(__LIBYO_R__)
-    if not Version._python_version().minVersion(3,2):
+    Version.LibyoVersion.fancyRequireVersion(__LIBYO_R__)
+    Version.PythonVersion.fancyRequireVersion(2,6)
+    if not Version.PythonVersion.minVersion(3,2):
         print("WARNING: Running on Python < 3.2 is not fully tested!")
     print();
 
@@ -55,7 +63,7 @@ def main(ARGC,ARGV):
     parser.add_argument("id", metavar="VideoID", type=str, help="The YouTube Video ID");
     parser.add_argument("-u","--url", dest="extract_url", action="store_true", default=False, help="VideoID is a URL; Extract the ID from it.");
     parser.add_argument("-q","--quality", metavar="Q", dest="quality", action="store", choices=qchoice.new(1080,720,480,360,240), default="480", help="Quality (Will automatically lower Quality if not avaiable!) [Default: %(default)sp]");
-    parser.add_argument("-a","--avc", metavar="PRF", dest="avc", action="store", choices=cichoice(profiles.profiles.keys()), default=profiles.profiles.key_at(0), help="What Profile to use [Default: %(default)s]\nUse '%(prog)s -i profiles' to show avaliable choices");
+    parser.add_argument("-a","--avc", metavar="PRF", dest="avc", action="store", choices=cichoice(profiles.profiles.keys()), default=firstkey(profiles.profiles), help="What Profile to use [Default: %(default)s]\nUse '%(prog)s -i profiles' to show avaliable choices");
     parser.add_argument("-f","--force",dest="force",action="store_true",default=False,help="Force Quality Level (don't jump down)");
     parser.add_argument("-y","--fmt",dest="fmt",metavar="FMT",action="store",type=int,choices=profiles.descriptions.keys(),help="Specify FMT Level. (For Advanced Users)\nUse '%(prog)s -i fmt' to show known Values");
     parser.add_argument("-c","--cmd", metavar="CMD", dest="command", default="vlc %u vlc://quit", action="store", help="Media PLayer Command. use \x25\x25u for url"); #use %% to get around the usage of % formatting in argparse
@@ -87,7 +95,8 @@ def internal_cmd(args):
                 Commands:
                 \thelp     : show this help message"
                 \tfmt      : show known fmt values"
-                \tprofiles : show available Profiles""".format(args.prog));
+                \tprofiles : show available Profiles
+                \tshell    : open a shell that continuously accepts urls""".format(args.prog));
     elif args.id.lower() in ("profiles",):
         print("Available Profiles are:");
         i=max((len(i) for i in profiles.profiles.keys()))
@@ -150,12 +159,18 @@ def process(args):
         track.setImage("http://s.ytimg.com/vi/{0}/default.jpg".format(video_info.video_id));
         track.setInfo("http://www.youtube.com/watch?v={0}".format(video_info.video_id));
         xspf.addTrack(track);
-        temp = tempfile.NamedTemporaryFile(suffix=".xspf",prefix="afp_");
+        if not WINSX:
+            temp = tempfile.NamedTemporaryFile(suffix=".xspf",prefix="afp_");
+        else:
+            temp = tempfile.NamedTemporaryFile(suffix=".xspf",prefix="afp-temp_",delete=False);
         xspf.toFile_c14n(temp.file);
-        temp.file.flush();
         fn=temp.name;
         if args.verbose:
             print("XSPF Filename: "+fn)
+        if not WINSX:
+            temp.file.flush();
+        else:
+            temp.close()
     else:
         fn=url;
     argv = shlex.split(args.command);
@@ -169,7 +184,10 @@ def process(args):
         print();
     subprocess.call(argv,stdout=out_fp,stderr=out_fp);
     if args.xspf:
-        temp.close();
+        if not WINSX:
+            temp.close();
+        else:
+            os.remove(temp.name);
     return 0;
 
 def afp_shell(args):
@@ -185,7 +203,7 @@ def afp_shell(args):
         readline.parse_and_bind("\eA: previous-history");
         readline.parse_and_bind("\eB: next-history");
     else:
-        print("WARNING: No Readline extension found. Readline functionality will NOT be available.\r\n\tIf you're on Windows you might consider PyReadline.")
+        print("WARNING: No Readline extension found. Readline functionality will NOT be available. If you're on Windows you might want to consider PyReadline.")
     sw = my_args.switches = ("u" if args.extract_url else "")+("x" if args.xspf else "")+("f" if args.force else"")+("n" if not args.quiet else "")+("v" if args.verbose else "");
     while running:
         line = input("{0}> ".format(args.prog));
