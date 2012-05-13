@@ -14,7 +14,6 @@ from libyo.youtube.exception import YouTubeException, YouTubeResolveError;
 from libyo.util.choice import cichoice, qchoice, switchchoice;
 from libyo.util.util import listreplace_s as lreplace;
 from libyo.util.pretty import fillA, fillP;
-from libyo.xspf.XspfObject import XspfObject;
 from libyo.argparse import ArgumentParser, RawTextHelpFormatter, LibyoArgumentParser, ArgumentParserExit;
 
 import tempfile;
@@ -35,13 +34,16 @@ else:
 valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
 input = compat.getModule("util").input; #@ReservedAssignment
 
-__VERSION__=(1,99,5,"");
-__LIBYO_R__=(0,9,9,"x");
+__VERSION__=(2,0,0,"");
+__LIBYO_R__=(0,9,10);
 
 tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
 firstkey = lambda i: next(iter(i))
 
-WINSX = platform.system()=="Windows";
+if platform.system()=="cli": #IronPython OS Detection
+    WINSX = platform.win32_ver()[0]!=""
+else:
+    WINSX = platform.system()=="Windows";
 
 def welcome():
     print("AntiFlashPlayer for YouTube v{1}.{2}.{3}{4} (libYo v{0})".format(LIBYO_VERSION,*__VERSION__));
@@ -49,8 +51,8 @@ def welcome():
     from libyo.version import Version
     Version.LibyoVersion.fancyRequireVersion(__LIBYO_R__)
     Version.PythonVersion.fancyRequireVersion(2,6)
-    if not Version.PythonVersion.minVersion(3,2):
-        print("WARNING: Running on Python < 3.2 is not fully tested!")
+    if Version.PythonVersion.minVersion(3) and not Version.PythonVersion.minVersion(3,2):
+        print("WARNING: Running on Python 3K < 3.2 is not fully tested!")
     print();
 
 def main_argv(argv):
@@ -153,17 +155,17 @@ def process(args):
         print("Found a Video URL: {0}".format(profiles.descriptions[fmt]));
     
     if args.xspf:
-        xspf = XspfObject.new(video_info.title);
-        track = xspf.newTrack(video_info.title,video_info.uploader,url);
-        track.setAnnotation(video_info.description);
-        track.setImage("http://s.ytimg.com/vi/{0}/default.jpg".format(video_info.video_id));
-        track.setInfo("http://www.youtube.com/watch?v={0}".format(video_info.video_id));
-        xspf.addTrack(track);
+        from libyo.xspf.simple import Playlist,Track;
+        xspf = Playlist(video_info.title);
+        xspf.append(Track(video_info.title,video_info.uploader,uri=url));
+        xspf[0].annotation = video_info.description;
+        xspf[0].image = "http://s.ytimg.com/vi/{0}/default.jpg".format(video_info.video_id);
+        xspf[0].info = "http://www.youtube.com/watch?v={0}".format(video_info.video_id);
         if not WINSX:
-            temp = tempfile.NamedTemporaryFile(suffix=".xspf",prefix="afp_");
+            temp = tempfile.NamedTemporaryFile("w+",suffix=".xspf",prefix="afp_");
         else:
-            temp = tempfile.NamedTemporaryFile(suffix=".xspf",prefix="afp-temp_",delete=False);
-        xspf.toFile_c14n(temp.file);
+            temp = tempfile.NamedTemporaryFile("w+",suffix=".xspf",prefix="afp-temp_",delete=False);
+        xspf.write(temp.file);
         fn=temp.name;
         if args.verbose:
             print("XSPF Filename: "+fn)

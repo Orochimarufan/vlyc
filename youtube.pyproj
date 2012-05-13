@@ -12,12 +12,13 @@
     <Name>youtube</Name>
     <RootNamespace>YouTubeToolChain</RootNamespace>
     <IsWindowsApplication>False</IsWindowsApplication>
-    <InterpreterId>2af0f10d-7135-4994-9156-5d01c9c11b7e</InterpreterId>
+    <InterpreterId>80659ab7-4d53-4e0c-8588-a766116cbd46</InterpreterId>
     <InterpreterVersion>2.7</InterpreterVersion>
-    <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>-ixvnu shell -c "D:\\Programme\\VideoLan\\VLC\\vlc.exe '%u'" -q 720 -a avc</CommandLineArguments>
+    <LaunchProvider>IronPython (.NET) launcher</LaunchProvider>
+    <CommandLineArguments>-ivnux shell -c "D:\\Programme\\VideoLan\\VLC\\vlc.exe '%u' vlc://quit" -q 720 -a avc</CommandLineArguments>
     <InterpreterPath />
-    <InterpreterArguments />
+    <InterpreterArguments>-X:FullFrames</InterpreterArguments>
+    <DebugStdLib>False</DebugStdLib>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
