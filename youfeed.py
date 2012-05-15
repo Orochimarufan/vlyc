@@ -1,20 +1,15 @@
 #!/usr/bin/python3
 #-@PydevCodeAnalysisIgnore
-from __future__ import print_function
+from __future__ import unicode_literals,print_function,absolute_import
 
 bytecount = 64*1024
-__VERSION__=(2,0,0,"f")
-__LIBYO_R__=(0,9,7)
+__VERSION__=(2,0,1,"")
+__LIBYO_R__=(0,9,10)
 
 
 import libyo
-libyo.reqVersion(*__LIBYO_R__)
 from libyo.youtube.resolve import resolve3
-try:
-    from libyo.youtube.playlist import mixed as playlistFull
-except ImportError:
-    from libyo.youtube.playlist import advanced as playlistFull
-from libyo.youtube.playlist import skeleton as playlistSkeleton
+from libyo.youtube.Playlist import Playlist
 from libyo.youtube.User import User
 from libyo.extern import argparse
 from libyo.youtube.resolve.profiles import descriptions as fmtdesc, file_extensions as fmtext
@@ -22,12 +17,24 @@ from libyo.youtube.exception import YouTubeResolveError
 from libyo.interface.progress.simple import SimpleProgress2
 from libyo.urllib.download import download as downloadFile
 from libyo.configparser import RawPcsxConfigParser, PcsxConfigParser
+from libyo.version import Version
 import os
 import json
+import string
+import platform
+
+if platform.system()=="cli": #IronPython OS Detection
+    WINSX = platform.win32_ver()[0]!=""
+else:
+    WINSX = platform.system()=="Windows";
+valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
+tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
 
 def welcome():
     print("YouFeed v{1}.{2}.{3}{4} (libyo v{0})".format(libyo.LIBYO_VERSION,*__VERSION__))
     print("(c) 2011-2012 Orochimarufan")
+    Version.LibyoVersion.fancyRequireVersion(*__LIBYO_R__)
+    Version.PythonVersion.fancyRequireVersion(2,6)
 
 def main(ARGV):
     welcome()
@@ -52,6 +59,8 @@ def main(ARGV):
     parser_run.add_argument("-o","--offset",metavar="N",dest="offset",default=0,type=int,help="Skip N Videos")
     parser_run.set_defaults(command="run")
     args=parser.parse_args(ARGV[1:])
+    if not os.path.exists("pl"):
+        os.makedirs("pl")
     if "command" not in args or args.command=="":
         return _mode_joblist(args)
     elif args.command=="job":
@@ -159,7 +168,7 @@ def _download(args,meta,target,fmt_list,video_item):
     print("[VIDEO] Downloading with Quality level {0}".format(fmtdesc[fmt]))
     if not args.dummy:
         video       = resolve3(video_id)
-        filename    = video.title.replace("/","-").replace(" ","_")+"."+fmtext[fmt]
+        filename    = tofilename(video.title)+"."+fmtext[fmt]
         path        = target
         fullpath    = os.path.join(path,filename)
         progress    = SimpleProgress2()
@@ -189,7 +198,8 @@ def _download(args,meta,target,fmt_list,video_item):
 
 def _playlist_job(args,job):
     playlist_id         = job.getnosect("playlist")
-    skel                = playlistSkeleton(playlist_id)
+    pl_factory          = Playlist(playlist_id)
+    skel                = pl_factory.skeleton()
     playlist_name       = skel["data"]["title"]
     playlist_author     = skel["data"]["author"]
     playlist_file=os.path.abspath(os.path.join("pl",os.path.normpath(playlist_id+".plm")))
@@ -201,7 +211,10 @@ def _playlist_job(args,job):
         ])
     else:
         meta            = json.load(open(playlist_file))
-    playlist_target     = os.path.abspath(os.path.join("playlists",meta["meta"]["name"]))
+    if job.getnosect("target_dir",False):
+        playlist_target        = os.path.abspath(os.path.join("playlists",job.getnosect("target_dir")));
+    else:
+        playlist_target     = os.path.abspath(os.path.join("playlists",tofilename(meta["meta"]["name"])))
     if not os.path.isdir(playlist_target):
         os.makedirs(playlist_target)
     fmt_list            = _job_quality(job)
@@ -209,7 +222,7 @@ def _playlist_job(args,job):
         return False
     print("[ JOB ] Playlist: \"{0}\" by {1}".format(playlist_name,playlist_author))
     print("[ JOB ] Synchronizing Data. Please Wait...")
-    playlist            = playlistFull(playlist_id)
+    playlist            = pl_factory.advanced()
     meta["cache"]       = playlist
     items = [i for i in playlist["data"]["items"] if i["video"]["id"] not in meta["items"]]
     items = (items[args.offset:] if args.offset>0 else items)
@@ -227,7 +240,7 @@ def _favorites_job(args,job):
     #skel    = userobj.favorites_skeleton();
     #user    = skel["data"]["items"][0]["author"]; #broken? (*dummy*)
     user    = job.getnosect("user")
-    meta_file=os.path.abspath(os.path.join("pl",os.path.normpath(user+".ytfav")));
+    meta_file=os.path.abspath(os.path.join("pl",os.path.normpath(tofilename(user)+".ytfav")));
     if not os.path.exists(meta_file):
         meta = dict([
             ("meta",dict([("name",user+"'s Favorites"),("author",user),("description",user+"'s favourite Videos"),
@@ -239,7 +252,7 @@ def _favorites_job(args,job):
     if job.getnosect("target_dir",False):
         target=os.path.abspath(os.path.join("playlists",job.getnosect("target_dir")));
     else:
-        target = os.path.abspath(os.path.join("playlists",user+"s Favorites"));
+        target = os.path.abspath(os.path.join("playlists",tofilename(user)+"s Favorites"));
     if not os.path.exists(target):
         os.makedirs(target);
     fmt_list            = _job_quality(job)

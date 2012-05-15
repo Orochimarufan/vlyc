@@ -19,6 +19,7 @@ from libyo.argparse import ArgumentParser, RawTextHelpFormatter, LibyoArgumentPa
 import tempfile;
 import shlex;
 import os;
+import io;
 import subprocess;
 import copy;
 import platform;
@@ -162,10 +163,12 @@ def process(args):
         xspf[0].image = "http://s.ytimg.com/vi/{0}/default.jpg".format(video_info.video_id);
         xspf[0].info = "http://www.youtube.com/watch?v={0}".format(video_info.video_id);
         if not WINSX:
-            temp = tempfile.NamedTemporaryFile("w+",suffix=".xspf",prefix="afp_");
+            temp = tempfile.NamedTemporaryFile("w+b",suffix=".xspf",prefix="afp_");
         else:
-            temp = tempfile.NamedTemporaryFile("w+",suffix=".xspf",prefix="afp-temp_",delete=False);
-        xspf.write(temp.file);
+            temp = tempfile.NamedTemporaryFile("w+b",suffix=".xspf",prefix="afp-temp_",delete=False);
+        temp.readable=temp.writable=temp.seekable=lambda: True #for some reason temporary files dont have those
+        temp_file = io.TextIOWrapper(temp,"UTF-8")
+        xspf.write(temp_file);
         fn=temp.name;
         if args.verbose:
             print("XSPF Filename: "+fn)
@@ -189,7 +192,7 @@ def process(args):
         if not WINSX:
             temp.close();
         else:
-            os.remove(temp.name);
+            temp.unlink();
     return 0;
 
 def afp_shell(args):

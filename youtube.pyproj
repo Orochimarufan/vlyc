@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{cc2c556a-8a7c-49e3-bfc7-d0bcdb088fa2}</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>antiflashplayer.py</StartupFile>
+    <StartupFile>youfeed.py</StartupFile>
     <SearchPath>D:\devel\Projects\libyo</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
@@ -14,10 +14,11 @@
     <IsWindowsApplication>False</IsWindowsApplication>
     <InterpreterId>80659ab7-4d53-4e0c-8588-a766116cbd46</InterpreterId>
     <InterpreterVersion>2.7</InterpreterVersion>
-    <LaunchProvider>IronPython (.NET) launcher</LaunchProvider>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
     <CommandLineArguments>-ivnux shell -c "D:\\Programme\\VideoLan\\VLC\\vlc.exe '%u' vlc://quit" -q 720 -a avc</CommandLineArguments>
     <InterpreterPath />
-    <InterpreterArguments>-X:FullFrames</InterpreterArguments>
+    <InterpreterArguments>
+    </InterpreterArguments>
     <DebugStdLib>False</DebugStdLib>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
