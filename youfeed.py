@@ -3,8 +3,9 @@
 from __future__ import unicode_literals,print_function,absolute_import
 
 bytecount = 64*1024
-__VERSION__=(2,0,1,"")
-__LIBYO_R__=(0,9,10)
+_xspf_relpath=True
+__VERSION__=(2,0,1,"a")
+__LIBYO_R__=(0,9,10,"a")
 
 
 import libyo
@@ -44,8 +45,8 @@ def main(ARGV):
     parser_def=subparsers.add_parser("all",description="Do all Jobs defined in the jobs/ directory.")
     parser_def.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
     parser_def.set_defaults(command="",max=-1,offset=0)
-    parser_job=subparsers.add_parser("job",description="Do one job defined in the jobs/ directory.")
-    parser_job.add_argument("job",metavar="JobFileName",help="The Filename of the job definition file to use.")
+    parser_job=subparsers.add_parser("job",aliases=["jobs"],description="Do one job defined in the jobs/ directory.")
+    parser_job.add_argument("job",metavar="JobFileName",help="The Filename of the job definition file to use.",nargs="+")
     parser_job.add_argument("-n","--max",metavar="N",dest="max",type=int,default=-1,help="Max Number of Videos to download")
     parser_job.add_argument("-o","--offset",metavar="N",dest="offset",type=int,default=0,help="Skip N Videos")
     parser_job.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
@@ -64,9 +65,23 @@ def main(ARGV):
     if "command" not in args or args.command=="":
         return _mode_joblist(args)
     elif args.command=="job":
-        if args.job[-4:]!=".ini":
-            args.job=args.job+".ini";
-        return _mode_job(args,[os.path.join("jobs",args.job)])
+        paths = []
+        for pt in args.job:
+            if not os.path.exists(pt):
+                path = os.path.join("jobs",pt)
+                if not os.path.exists(path):
+                    if os.path.exists(path+".ini"):
+                        path+=".ini"
+                    else:
+                        print("[ERROR] Job not Found (Did you put it into jobs/?): "+path)
+                        continue
+                paths.append(path)
+            else:
+                paths.append(pt)
+        if len(paths)>1 and (args.offset!=0 or args.max!=-1):
+            print("[ERROR] --offset and --max are only valid on single-job calls.")
+            args.offset=0;args.max=-1
+        return _mode_job(args,paths)
     elif args.command=="run":
         return _mode_run(args)
 
@@ -84,7 +99,7 @@ def _mode_job(args,joblist):
         job_name=job.getnosect("name")
         print("[ MAIN] Processing Job \"{0}\"...".format(job_name))
         job_type=job.getnosect("type").lower()
-        
+
         if not args.pl:
             if job_type in ("pl","playlist"):
                 _playlist_job(args,job)
@@ -93,10 +108,10 @@ def _mode_job(args,joblist):
             else:
                 print("[ JOB ] Unknown Job Type: "+job_type)
                 continue
-        
+
         if job.getnosect("createpl",False):
             _xspf_job(args,job)
-        
+
     print("[ MAIN] Done. Farewell, may we meet again!")
 
 def _mode_run(args):
@@ -113,7 +128,7 @@ def _mode_run(args):
     else:
         print("[ MAIN] Unknown Job Type: "+args.job_type)
         return 1
-    
+
     if args.xspf_file:
         job.setnosect("createpl",args.xspf_file)
         _xspf_job(args,job)
@@ -121,7 +136,7 @@ def _mode_run(args):
 
 def _xspf_job(args,job):
     xspf_file       = job.getnosect("createpl")
-    
+
     if job.getnosect("type").lower() in ("pl","playlist"):
         filename = os.path.abspath(os.path.join("pl",os.path.normpath(job.getnosect("playlist")+".plm")))
         with open(filename) as fp:
@@ -145,10 +160,10 @@ def _xspf_job(args,job):
         xspf_file.index(".")
     except ValueError:
         xspf_file   += ".xspf"
-    
+
     print("[ JOB ] Creating Local Playlist: '{0}'".format(xspf_file))
     xspf_object     = _create_xspf(meta["meta"],meta["local"],meta["downloads"])
-    
+
     with open(xspf_file,"w") as fp:
         xspf_object.writexml(fp, "", "", "", encoding="UTF-8")
 
@@ -206,7 +221,8 @@ def _playlist_job(args,job):
     if not os.path.exists(playlist_file):
         meta            = dict([
             ("meta",dict([("name",playlist_name),("author",skel["data"]["author"]),("description",skel["data"]["description"]),
-                          ("tags",list(skel["data"]["tags"])),("playlist_id",playlist_id),("url","http://youtube.com/playlist?list=PL"+playlist_id)])),
+                          #("tags",list(skel["data"]["tags"])),
+                          ("playlist_id",playlist_id),("url","http://youtube.com/playlist?list=PL"+playlist_id)])),
             ("items",list()),("cache",dict()),("local",list()),("local_id",dict()),("local_title",dict()),("downloads",dict())
         ])
     else:
@@ -319,7 +335,11 @@ def _create_xspf (meta,local,downloads):
     for i in local:
         vid = i["id"]
         track = minidom.Element("track")
-        _dom_addTextNode(track,"location",   "file://"+downloads[vid]["path"])
+        if _xspf_relpath:
+            path = os.path.relpath(downloads[vid]["path"])
+        else:
+            path = "file://"+downloads[vid]["path"]
+        _dom_addTextNode(track,"location",   path)
         _dom_addTextNode(track,"creator",    i["uploader"])
         _dom_addTextNode(track,"title",      i["title"])
         _dom_addTextNode(track,"annotation", i["description"].replace("\r\n","\n"))
