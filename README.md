@@ -1,38 +1,50 @@
 Contents
 ========
+
 AntiFlashPlayer
 ---------------
-`antiflashplayer.py`
+File: `antiflashplayer.py`
+
 A tool to playback Youtube Videos w/o Flash Player
+
 YouFeed
 -------
-`youfeed.py`
+File: `youfeed.py`
 A tool to batch-download Playlists for later viewing
 This tool was NOT created to pirate Youtube content.
+
 VLYC
 ----
-`vlyc2.py`
+File: `vlyc2.py`
+
 A libvlc based MediaPlayer that supports Youtube Videos and Quality Selection
+
 ### Future Plans
 * Subtitles
 * \[maybe\] annotations
 * playlist playback
 * Youtube search interface
 * Youtube User Login (rate/comment/subscribe)
+
 Others
 ------
-`vlyc.py`
+File: `vlyc/vlyc.py`
+
 Early version of vlyc2.py. Do not use.
-`testPlayer.py`
+
+File: `testPlayer.py`
+
 commandline MediaPlayer using the libvlc api and vlyc Player class
 
 DEPENDENCIES
 ===========
+
 REQUIRED
 -------
 * python (3.2+ recommended, **SHOULD** work on other versions)
 * libyo (http://github.com/Orochimarufan/libyo/)
 * only vlyc: PyQt4
+
 RECOMMENDED
 -----------
 * lxml (http://lxml.de)
@@ -41,6 +53,7 @@ RECOMMENDED
 
 OFFICIAL STUFF
 ==============
+
 Copyright
 ---------
 This Software is (c) 2010-2012 by Orochimarufan
