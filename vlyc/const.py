@@ -1,0 +1,37 @@
+'''
+Created on 13.06.2012
+
+@author: hinata
+'''
+
+#FullScreenController
+FSC_WIDTH = 300
+FSC_HEIGHT = 75
+
+#SoundWidget
+VOLUME_MAX = 200
+VOLUME_STEP = 1
+
+#SoundSlider
+SOUNDMAX = 200
+SOUNDMIN = 0
+SOUNDW = 80
+SOUNDH = 22
+QT_SLIDER_COLORS="1;66;2;77;3;99;4;33;5;22;6;97"
+
+#SeekSlider
+SEEK_MINIMUM = 0
+SEEK_MAXIMUM = 1000
+SEEK_STEP = 2
+SEEK_CHAPTERSSPOTSIZE = 3
+SEEK_FADEDURATION = 300
+SEEK_FADEOUTDELAY = 2000
+
+#TimeTooltip
+TIP_HEIGHT = 5
+
+#SeekStyle
+SEEK_RADIUS = 3
+
+
+root_logger = None

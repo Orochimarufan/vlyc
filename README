@@ -1,6 +1,0 @@
-DEPENDENCIES:
-- lxml (http://www.lxml.de/)
-- libyo (http://github.com/Orochimarufan/libyo/)
-- readline (Linux: StdLib; Windows: http://github.com/pyreadline/pyreadline/; Recommended)
-- regex (http://pypi.python.org/pypi/regex; Recommended)
-- python 3.2+
