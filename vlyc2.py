@@ -488,6 +488,7 @@ class VlycApplication(QtGui.QApplication):
 
     def newMedia(self,media):
         media.parse()
+        self.logger_ui.debug("Setting up UI for Video: "+nativestring(media.get_meta(0)))
         self.main_window.setWindowTitle(self.window_title_2.format(nativestring(media.get_meta(0))))
         self.length = media.get_duration()
 
@@ -601,7 +602,6 @@ class VlycApplication(QtGui.QApplication):
         self.yt_sub_tracks = subtitles.getTracks(vid)
         self.clnupSub()
         # Update UI
-        self.logger_player.debug("Setting up UI for Video: "+video_info.title)
         self.uilock=True
         #Populate Subtitles ComboBox
         self.main_window.subtitle_combo.clear()
@@ -641,6 +641,7 @@ class VlycApplication(QtGui.QApplication):
             self.youtube_change_fmt(fmt)
     
     def ChangeSubTrack(self,i_pos):
+        if self.uilock: return
         self.clnupSub()
         if i_pos == 0:
             self.player.video_set_spu(0)

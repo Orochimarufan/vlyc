@@ -45,14 +45,12 @@ youfeed = Executable(
     initScript = None,
     base = None,
     targetName = "youfeed"+ext,
-    #icon = os.path.join("res", "konachan.ico")
     )
 afp = Executable(
 	script = "antiflashplayer.py",
 	initScript = None,
 	base = None,
 	targetName = "afp"+ext,
-	#icon = os.path.join("res", "konachan.ico")
 	)
 
 print("SETUP()...")
@@ -65,9 +63,7 @@ options = {"build_exe": {
             #"bin_includes":["libvlc.so.5","libvlccore.so.5"],
             #"bin_path_includes":["/usr/lib"],
             "append_script_to_exe":True,
-            "include_files": ["VERSION",
-                              ("/usr/lib/libvlc.so.5","libvlc.so.5"),
-                              ("/usr/lib/libvlccore.so.5","libvlccore.so.5")],
+            "include_files": ["VERSION"],
             }
         }
 

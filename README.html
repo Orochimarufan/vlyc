@@ -2,21 +2,19 @@
 
 <h2>AntiFlashPlayer</h2>
 
-<p>File: <code>antiflashplayer.py</code></p>
-
-<p>A tool to playback Youtube Videos w/o Flash Player</p>
+<p>File: <code>antiflashplayer.py</code> <br />
+A tool to playback Youtube Videos w/o Flash Player</p>
 
 <h2>YouFeed</h2>
 
-<p>File: <code>youfeed.py</code>
-A tool to batch-download Playlists for later viewing
+<p>File: <code>youfeed.py</code> <br />
+A tool to batch-download Playlists for later viewing. <br />
 This tool was NOT created to pirate Youtube content.</p>
 
 <h2>VLYC</h2>
 
-<p>File: <code>vlyc2.py</code></p>
-
-<p>A libvlc based MediaPlayer that supports Youtube Videos and Quality Selection</p>
+<p>File: <code>vlyc2.py</code> <br />
+A libvlc based MediaPlayer that supports Youtube Videos and Quality Selection</p>
 
 <h3>Future Plans</h3>
 
@@ -30,25 +28,34 @@ This tool was NOT created to pirate Youtube content.</p>
 
 <h2>Others</h2>
 
-<p>File: <code>vlyc/vlyc.py</code></p>
+<p>File: <code>vlyc/vlyc.py</code> <br />
+Early version of vlyc2.py. Do not use.</p>
 
-<p>Early version of vlyc2.py. Do not use.</p>
+<p>File: <code>testPlayer.py</code> <br />
+commandline MediaPlayer using the libvlc api and vlyc Player class</p>
 
-<p>File: <code>testPlayer.py</code></p>
+<h1>Dependencies</h1>
 
-<p>commandline MediaPlayer using the libvlc api and vlyc Player class</p>
-
-<h1>DEPENDENCIES</h1>
-
-<h2>REQUIRED</h2>
+<h2>Required</h2>
 
 <ul>
 <li>python (3.2+ recommended, <strong>SHOULD</strong> work on other versions)</li>
 <li>libyo (http://github.com/Orochimarufan/libyo/)</li>
-<li>only vlyc: PyQt4</li>
 </ul>
 
-<h2>RECOMMENDED</h2>
+<h2>Required for VLYC:</h2>
+
+<ul>
+<li>PyQt4</li>
+<li>libvlc</li>
+</ul>
+
+<h4>Note:</h4>
+
+<p>The Ubuntu libvlc 1.1 seems to have some problem. <br />
+Please use latest 2.0 builds (Ubuntu PPA: 'ppa:videolan/stable-daily')</p>
+
+<h2>Recommended</h2>
 
 <ul>
 <li>lxml (http://lxml.de)</li>
@@ -56,13 +63,31 @@ This tool was NOT created to pirate Youtube content.</p>
 <li>regex (http://pypi.python.prg/pypi/regex)</li>
 </ul>
 
-<h1>OFFICIAL STUFF</h1>
+<h1>Official Stuff</h1>
 
 <h2>Copyright</h2>
 
-<p>This Software is (c) 2010-2012 by Orochimarufan
-Parts of VLYC are taken from VLC Sources (c) by the VideoLAN Team</p>
+<p>This Software is &copy; 2010-2012 by Orochimarufan <br />
+Parts of VLYC are taken from VLC Sources (c) by the VideoLAN Team  </p>
 
 <h2>License</h2>
 
-<p>Unless Otherwise Stated, All files are distributed under the GNU GPL, either Version 2 or 3 of it.</p>
+<div style="font-family: monospace">
+Youtube Tools, including AFP, VLYC, YouFeed and others<br>
+Copyright (C) 2011-2012 Orochimarufan<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+1996-2012 the VideoLan Team (parts of VLYC)<br>
+<br>
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 2 of the License, or
+(at your option) any later version.<br>
+<br>
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.<br>
+<br>
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.<br>
+</div>
