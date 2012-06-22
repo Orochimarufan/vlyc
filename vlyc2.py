@@ -32,12 +32,13 @@ from vlyc import const
 const.root_logger = logging.getLogger("vlyc.gui")
 from vlyc import player, vlc_res, input_slider, widgets #@UnresolvedImport
 from vlyc.controller import FullscreenControllerWidget
-from libyo.youtube import resolve#,subtitles #@UnresolvedImport
+from libyo.youtube import resolve,subtitles #@UnresolvedImport
 from libyo.youtube.resolve import profiles #@UnresolvedImport
 from libyo.util.util import sdict_parser #@UnresolvedImport
 from libyo.argparse import LibyoArgumentParser #@UnresolvedImport
 from libyo.compat.uni import u as unicode, nativestring #@UnresolvedImport
 from collections import OrderedDict
+import tempfile, io
 
 _unused = [vlc_res]; del _unused
 
@@ -110,7 +111,12 @@ class MainWindow(QtGui.QMainWindow):
         self.fullscreen_button.setIcon(QtGui.QIcon(":/toolbar/fullscreen"))
         self.fullscreen_button.setFocusPolicy(QtCore.Qt.NoFocus)
         self.control_layout.addWidget(self.fullscreen_button)
-
+        
+        self.subtitle_combo = QtGui.QComboBox(self.root_widget)
+        self.subtitle_combo.setObjectName("subtitle_combo")
+        self.subtitle_combo.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.control_layout.addWidget(self.subtitle_combo)
+        
         self.quality_combo = QtGui.QComboBox(self.root_widget)
         self.quality_combo.setObjectName("quality_combo")
         self.quality_combo.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -248,14 +254,14 @@ class FullscreenController(type("FullscreenController", (QtGui.QFrame, ), dict(F
         self.stop_b.setIcon(QtGui.QIcon(":/toolbar/stop_b"))
         layout.addWidget(self.stop_b)
 
-        layout.addSpacing(50)
+        layout.addStretch(100)
 
         self.fullscreen = QtGui.QToolButton()
         self.fullscreen.setObjectName("fscFullscreenButton")
         self.fullscreen.setIcon(QtGui.QIcon(":/toolbar/defullscreen"))
         layout.addWidget(self.fullscreen)
 
-        layout.addStretch(100)
+        layout.addSpacing(20)
 
         self.sound_w = widgets.SoundWidget(None, True)
         self.sound_w.setObjectName("fscSoundWidget")
@@ -384,6 +390,8 @@ class VlycApplication(QtGui.QApplication):
         self.length = -1
         self.b_fullscreen = False
         self.fs_controller = None
+        self.yt_sub_tracks = []
+        self.subfile = None
 
         #/---------------------------------------
         # MenuBar Actions
@@ -414,6 +422,7 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
         #self.main_window.quality_combo.currentIndexChanged.connect(self.ChangeQuality) #Not working because of signal overloads
         self.connect(self.main_window.quality_combo, QtCore.SIGNAL("currentIndexChanged(const QString&)"), self.ChangeQuality)
+        self.connect(self.main_window.subtitle_combo, QtCore.SIGNAL("currentIndexChanged(int)"), self.ChangeSubTrack)
         self.main_window.fullscreen_button.clicked.connect(self.toggleFullscreen)
 
         #/---------------------------------------
@@ -459,6 +468,11 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.savePosition()
         if self.fs_controller: self.fs_controller.savePosition()
         self.settings.sync()
+        
+        #/--------------------------------------
+        # Clean Up
+        #--------------------------------------/
+        self.clnupSub()
 
     #/-------------------------------------------
     # Event Slots
@@ -505,6 +519,8 @@ class VlycApplication(QtGui.QApplication):
         self.timer.start()
         self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
         self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
+        if self.subfile:
+            self.player.video_set_subtitle_file(player.vlcstring(self.subfile.name))
         return x
     def stop(self):
         self.player.stop()
@@ -580,10 +596,17 @@ class VlycApplication(QtGui.QApplication):
                 break;
         else:
             fmt = self.qa_map.values()[0]
+        # Subtitles Stuff
+        self.logger_youtube.debug("Fetching Subtitles")
+        self.yt_sub_tracks = subtitles.getTracks(vid)
+        self.clnupSub()
         # Update UI
         self.logger_player.debug("Setting up UI for Video: "+video_info.title)
         self.uilock=True
-        #self.main_window.setWindowTitle(self.window_title_2.format(video_info.title)) #now implemented in newMedia()
+        #Populate Subtitles ComboBox
+        self.main_window.subtitle_combo.clear()
+        self.main_window.subtitle_combo.addItem("No Subtitles", userData=None)
+        self.main_window.subtitle_combo.addItems([i.lang_original for i in self.yt_sub_tracks])
         # Populate Quality ComboBox
         self.main_window.quality_combo.clear()
         self.main_window.quality_combo.addItems(list(self.qa_map.keys()))
@@ -598,8 +621,11 @@ class VlycApplication(QtGui.QApplication):
         self.fmt = fmt
         url = self.video_info.fmt_url(fmt)
         media = player.getInstance().media_new_location(player.vlcstring(url))
-        media.set_meta(0, player.vlcstring(self.video_info.title))
-        media.set_meta(1, player.vlcstring(self.video_info.uploader))
+        try:
+            media.set_meta(0, player.vlcstring(self.video_info.title))
+            media.set_meta(1, player.vlcstring(self.video_info.uploader))
+        except AttributeError:
+            pass
         self.player.set_media(media)
 
     def youtube_change_fmt(self,fmt):
@@ -613,11 +639,37 @@ class VlycApplication(QtGui.QApplication):
         if not self.uilock:
             fmt = self.qa_map[str_qa]
             self.youtube_change_fmt(fmt)
+    
+    def ChangeSubTrack(self,i_pos):
+        self.clnupSub()
+        if i_pos == 0:
+            self.player.video_set_spu(0)
+        else:
+            i_pos -= 1
+            track = self.yt_sub_tracks[i_pos]
+            self.subfile = tempfile.NamedTemporaryFile("wb",prefix="vlycsub",suffix=".srt",delete=False)
+            self.subfile.writable=self.subfile.seekable=self.subfile.readable=lambda: True
+            subhandle = io.TextIOWrapper(self.subfile,encoding="utf8")
+            subhandle.write(track.getSRT())
+            subhandle.close()
+            self.subfile.close()
+            self.logger_youtube.debug("Settings Subfile: %s"%self.subfile.name)
+            self.player.video_set_subtitle_file(player.vlcstring(self.subfile.name))
+    
+    def clnupSub(self):
+        if self.subfile:
+            os.remove(self.subfile.name)
+        self.subfile = None
+    def clnupYt(self):
+        self.clnupSub()
+        self.main_window.subtitle_combo.clear()
+        self.main_window.quality_combo.clear()
 
     #/-------------------------------------------
     # open any video
     #-------------------------------------------/
     def open_generic(self, mrl):
+        self.clnupYt()
         self.player.open(mrl)
         self.play()
 
