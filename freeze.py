@@ -21,12 +21,18 @@ else:
     ext=""
     file_deps=[]
 
+from libyo.version import Version #@UnresolvedImport
+
 pipe = Popen(["git","rev-list","--all"],stdout=PIPE)
 pipe.wait()
 rev = len(pipe.stdout.read().decode("utf8").strip().split("\n"))
-
-from libyo.version import Version #@UnresolvedImport
-version = Version.LibyoVersion.format("{0}.{1}.{2}{patch_i:02}.{{0}}").format(rev)
+if sys.platform=="win32":
+    version = Version.LibyoVersion.format("{0}.{1}.{2}{patch_i:02}.{{0}}").format(rev)
+else:
+    pipe = Popen(["git","rev-list","HEAD","-n1","--abbrev-commit"],stdout=PIPE)
+    pipe.wait()
+    git = pipe.stdout.read().decode("utf8").strip()
+    version = Version.LibyoVersion.format("{0}.{1}.{2}.{patch_i}-{{0}}git{{1}}").format(rev,git)
 
 print("Version = %s"%version)
 with open("VERSION","w") as v:

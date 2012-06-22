@@ -18,7 +18,6 @@ File: `vlyc2.py`
 A libvlc based MediaPlayer that supports Youtube Videos and Quality Selection
 
 ### Future Plans
-* Subtitles
 * \[maybe\] annotations
 * playlist playback
 * Youtube search interface
