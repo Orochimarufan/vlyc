@@ -32,14 +32,24 @@ import logging
 logger_lib = logging.getLogger("libvlc")
 
 if sys.hexversion>=0x3000000:
-    unicode = None #eric will complain without this
     vlcstring = lambda s: bytes(s, "utf8")
+    natstring = lambda s: str(s,"utf8")
     _strings = (str)
 else:
     vlcstring = lambda s: str(s)
+    natstring = lambda s: str(s)
     _strings = (str, unicode)
 
 _vlcenum = lambda enum: Enum(enum.__name__, **dict([(n, v) for v,n in enum._enum_names_.items()]))
+
+def libvlc_version():
+   return tuple([int(i) for i in libvlc_versionstring().split(" ")[0].split(".")])
+def libvlc_hexversion():
+   return int("{0:02x}{1:02x}{2:02x}".format(*libvlc_version()),16)
+def libvlc_codename():
+   return libvlc_versionstring().split(" ",2)[1]
+def libvlc_versionstring():
+   return natstring(libvlc.libvlc_get_version())
 
 Signal = QtCore.pyqtSignal
 
@@ -198,7 +208,8 @@ def initInstance(argv=None):
 def getInstance():
     global _instance
     if not _instance:
-        _instance = libvlc.Instance()
+        #_instance = libvlc.Instance()
+        _instance = libvlc.libvlc_new(0,None)
     return _instance
     
 class Player(QtCore.QObject):

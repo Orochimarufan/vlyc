@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 /*****************************************************************************
- * vlyc2.py : VLC Youtube Player
+ * vlyc2.py : libVLC Youtube Player
  ****************************************************************************
  * Copyright (C) 2012 Orochimarufan
  *
@@ -24,12 +24,14 @@
 """
 
 from __future__ import absolute_import, unicode_literals, print_function, division
+import logging
 from sip import setapi
 setapi("QString", 2)
+setapi("QVariant",2)
 from PyQt4 import QtCore, QtGui
-import logging, re, sys, os
+import re, sys, os
 from vlyc import const
-const.root_logger = logging.getLogger("vlyc.gui")
+const.root_logger = logging.getLogger("vlyc.gui") #FIXME: find a better way to do it
 from vlyc import player, vlc_res, input_slider, widgets #@UnresolvedImport
 from vlyc.controller import FullscreenControllerWidget
 from libyo.youtube import resolve,subtitles #@UnresolvedImport
@@ -37,10 +39,13 @@ from libyo.youtube.resolve import profiles #@UnresolvedImport
 from libyo.util.util import sdict_parser #@UnresolvedImport
 from libyo.argparse import LibyoArgumentParser #@UnresolvedImport
 from libyo.compat.uni import u as unicode, nativestring #@UnresolvedImport
+from libyo.version import Version
 from collections import OrderedDict
 import tempfile, io
-
 _unused = [vlc_res]; del _unused
+
+__VERSION__ = (0,1,1)
+VERSION = Version("vlyc",*__VERSION__)
 
 class MainWindow(QtGui.QMainWindow):
     def setupUi(self):
@@ -315,17 +320,169 @@ class FullscreenController(type("FullscreenController", (QtGui.QFrame, ), dict(F
         self.getSettings().setValue("FullScreen/wide",self.isWideFSC)
         self.getSettings().setValue("FullScreen/size",self.halfSize)
 
+class YoutubeHandler(QtCore.QObject):
+    """
+    The YouTube Resolving Handler (to be run inside a thread)
+    """
+    #/+++++++++++++++++++++++++++++++++++++++++++
+    # Constants
+    #+++++++++++++++++++++++++++++++++++++++++++/
+    watch_regexp = re.compile(r"^.+youtube\..{2,3}\/watch\?(.+)$")
+    invalid_message= "URL does not seem to be a valid YouTube Video URL:\r\n%s"
+    resolve_message= "Could not resolve Video: %s\r\n(Are you sure your Internet connection is Up?)"
+    logger = logging.getLogger("vlyc.YoutubeThread")
+    main_q_lookup = list(profiles.profiles["mixed-avc"][0].values())
+    pref_q_lookup = [18,5]
+    #/+++++++++++++++++++++++++++++++++++++++++++
+    # Initialization
+    #+++++++++++++++++++++++++++++++++++++++++++/
+    def __init__(self):
+        super(YoutubeHandler,self).__init__()
+        self.video_info = None
+        self.qa_map = None
+        self.subtitle_file = None
+        self.subtitle_tracks = None
+    #/+++++++++++++++++++++++++++++++++++++++++++
+    # Signals
+    #+++++++++++++++++++++++++++++++++++++++++++/
+    newVideoInf = QtCore.pyqtSignal("PyQt_PyObject")
+    videoUrlSet = QtCore.pyqtSignal("QString")
+    subsfileSet = QtCore.pyqtSignal("QString")
+    resolveBegn = QtCore.pyqtSignal()
+    resolveDone = QtCore.pyqtSignal()
+    resolveFail = QtCore.pyqtSignal("QString")
+    qualityList = QtCore.pyqtSignal("QStringList",int)
+    newSubsList = QtCore.pyqtSignal("QStringList")
+    #/+++++++++++++++++++++++++++++++++++++++++++
+    # Slots / Functions
+    #+++++++++++++++++++++++++++++++++++++++++++/
+    @QtCore.pyqtSlot("QString")
+    def initYoutube(self, url):
+        """
+        Load a Youtube Video
+        @called [SLOT]
+        @arg    str     url     the Video's Watch URL
+        @emits [resolveBegn],[resolveDone],[resolveFail]
+        @calls initVideo,initSubtitles
+        """
+        self.logger.info("Initializing Video: %s"%url)
+        self.resolveBegn.emit()
+        #Parse the Watch URL
+        match = self.watch_regexp.match(url)
+        if not match:
+            self.resolveFail.emit(self.invalid_message%url)
+        params = sdict_parser(match.group(1))
+        if "v" not in params:
+            self.resolveFail.emit(self.invalid_message%url)
+        video_id = params["v"]
+        #Initialize Video
+        self.initVideo(video_id)
+        #Initialize Subtitles
+        self.initSubtitles(video_id)
+        #Done
+        self.resolveDone.emit()
+    
+    #/-------------------------------------------
+    # Video URL Handling
+    #-------------------------------------------/
+    def initVideo(self,video_id):
+        """
+        [Internal] Resolve a Video
+        @called initYoutube
+        @arg    str     video_id    Video ID
+        @emits  [resolveFail],[qualityList],[videoUrlSet],[newVideoInf]
+        """
+        #Get the Video URL
+        self.logger.debug("Resolving Video: %s"%video_id)
+        video_info = resolve.resolve3(video_id)
+        if not video_info:
+            self.resolveFail(self.resolve_message%video_id)
+        self.video_info = video_info
+        self.newVideoInf.emit(video_info)
+        #Create Quality List
+        self.logger.debug("Assembling Format List")
+        self.qa_map = OrderedDict()
+        for f in self.main_q_lookup:
+            if f in video_info.urlmap:
+                self.qa_map[profiles.descriptions[f]]=f
+        #Determine Initial Quality
+        self.logger.debug("Determining fitting Quality Level")
+        for f in self.pref_q_lookup:
+            if f in video_info.urlmap:
+                fmt = f
+                break;
+        else:
+            self.logger.warn("No Preferred Quality Available. Choosing First Entry: %s",list(self.qa_map.keys())[0])
+            fmt = list(self.qa_map.values())[0]
+        #Emit Signal
+        f = list(self.qa_map.values()).index(fmt)
+        self.qualityList.emit(list(self.qa_map.keys()),f)
+        self.videoUrlSet.emit(self.video_info.fmt_url(fmt))
+
+    @QtCore.pyqtSlot("QString")
+    def setQuality(self,descr):
+        """
+        Set the Quality Level
+        @called [SLOT],initVideo
+        @arg    str|int descr       the Quality Description or index
+        @emits  [videoUrlSet]
+        """
+        fmt = self.qa_map[descr]
+        self.videoUrlSet.emit(self.video_info.fmt_url(fmt))
+
+    #/-------------------------------------------
+    # Subtitle Handling
+    #-------------------------------------------/
+    def initSubtitles(self,video_id):
+        """
+        [internal] Initialize Subtitles
+        @called initVideo
+        @args   str     video_id
+        @emits  [newSubsList]
+        """
+        self.logger.debug("Initializing Subtitles for Video '%s'"%self.video_info.title)
+        self.subtitle_tracks = subtitles.getTracks(video_id)
+        self.newSubsList.emit([t.lang_original for t in self.subtitle_tracks])
+    
+    @QtCore.pyqtSlot(int)
+    def setSubtitleTrack(self,i):
+        """
+        Select a Subtitle Track
+        @called [SLOT]
+        @arg    int     i       Track Number
+        @emits  [subsfileSet]
+        @calls  cleanupSubtitles
+        """
+        self.cleanupSubtitles()
+        track           = self.subtitle_tracks[i]
+        self.logger.debug("Fetching Subtitle Track [%i] %s",i,track.lang_original)
+        file            = tempfile.NamedTemporaryFile("wb",prefix="vlycsub",suffix=".srt",delete=False)
+        file.writable   = \
+        file.seekable   = \
+        file.readable   = lambda: True
+        handle          = io.TextIOWrapper(file,encoding="utf8")
+        handle.write(track.getSRT())
+        handle.close()
+        file.close()
+        self.subtitle_file = file.name
+        #Emit signal
+        self.subsfileSet.emit(self.subtitle_file)
+
+    def cleanupSubtitles(self):
+        """
+        [Internal] Cleanup Old Subtitles File
+        @called initSubs, [terminated]
+        """
+        if self.subtitle_file:
+            os.remove(self.subtitle_file)
+        self.subtitle_file = None
+
 class VlycApplication(QtGui.QApplication):
     """
     A VLYC Player Application
     """
-    youtube_regexp = re.compile(r"^.+youtube\..{2,3}\/watch\?(.+)$")
-    youtube_message= """URL does not seem to be a valid YouTube Video URL:\r\n{0}"""
-    resolve_message= """Could not resolve Video: {0}\r\n(Are you sure your Internet connection is Up?)"""
     window_title_1 = """VideoLan Youtube Client"""
     window_title_2 = """{0} -- VLYC"""
-    main_q_lookup = list(profiles.profiles["mixed-avc"][0].values())
-    pref_q_lookup = [18,5]
 
     logger          = logging.getLogger("vlyc")
     logger_ui       = logger.getChild("ui")
@@ -363,6 +520,32 @@ class VlycApplication(QtGui.QApplication):
         self.argument_parser_execute()
 
         #/---------------------------------------
+        # Do Version Checks
+        #---------------------------------------/
+        if not Version.PythonVersion.minVersion(3,2):
+            QtGui.QMessageBox.warn(None,"Python Version Alert",
+                    """The Python Version you are using is not supported by this Application: %s
+                    The Consistency of the Software can not be guaranteed.
+                    Please consider upgrading to Python v3.2 or higher (http://python.org)"""\
+                                   %Version.PythonVersion.format())
+        self.logger.info("Python Version: %s"%Version.PythonVersion.format())
+        if not Version.LibyoVersion.minVersion(0,9,10,"b"):
+            QtGui.QMessageBox.critical(None,"LibYo Version Alert",
+                    """The libyo library version you are using is not supported by this Application: %s
+                    The Software cannot run properly.
+                    Please upgrade to libyo v0.9.10b or higher (http://github.com/Orochimarufan/libyo)"""\
+                                    %Version.LibyoVersion.format())
+            return 1
+        self.logger.info("libyo Version: %s"%Version.LibyoVersion.format())
+        if player.libvlc_hexversion()<0x020000:
+            QtGui.QMessageBox.warn(None,"libvlc Version Alert",
+                    """The libvlc library version you are using is not supported by this Application: %s
+                    The software may not be able to run properly.
+                    Please consider upgrading to libvlc 2.0.0 or higher (http://videolan.org)"""\
+                                    %Version("libvlc",player.libvlc_version()).format())
+        self.logger.info("libvlc Version: %s"%player.libvlc_versionstring())
+
+        #/---------------------------------------
         # Load Settings
         #---------------------------------------/
         self.settings = QtCore.QSettings()
@@ -392,6 +575,9 @@ class VlycApplication(QtGui.QApplication):
         self.fs_controller = None
         self.yt_sub_tracks = []
         self.subfile = None
+        self.rdg = None
+        self._yt_title = None
+        self._yt_uploa = None
 
         #/---------------------------------------
         # MenuBar Actions
@@ -424,7 +610,14 @@ class VlycApplication(QtGui.QApplication):
         self.connect(self.main_window.quality_combo, QtCore.SIGNAL("currentIndexChanged(const QString&)"), self.ChangeQuality)
         self.connect(self.main_window.subtitle_combo, QtCore.SIGNAL("currentIndexChanged(int)"), self.ChangeSubTrack)
         self.main_window.fullscreen_button.clicked.connect(self.toggleFullscreen)
-
+        
+        #/---------------------------------------
+        # Set up Youtube Thread
+        #---------------------------------------/
+        self.youtube_thread = QtCore.QThread()
+        self.init_yt()
+        self.youtube_thread.start()
+        
         #/---------------------------------------
         # libvlc Player embedding
         #---------------------------------------/
@@ -463,16 +656,16 @@ class VlycApplication(QtGui.QApplication):
         self.logger.debug("Terminating")
 
         #/---------------------------------------
+        # Collect threads
+        #---------------------------------------/
+        self.youtube_thread.terminate()
+
+        #/---------------------------------------
         # Save Settings
         #---------------------------------------/
         self.main_window.savePosition()
         if self.fs_controller: self.fs_controller.savePosition()
         self.settings.sync()
-        
-        #/--------------------------------------
-        # Clean Up
-        #--------------------------------------/
-        self.clnupSub()
 
     #/-------------------------------------------
     # Event Slots
@@ -546,125 +739,93 @@ class VlycApplication(QtGui.QApplication):
                     self.stop()
                     self.emit(QtCore.SIGNAL("ended()"))
             self.timer.stop()
+        else:
+            if self.rdg and self.rdg.isVisible():
+                self.rdg.hide()
 
     def reset_ui(self):
         self.main_window.time_label.setDisplayPosition(-1.0, 0, self.length)
         self.main_window.seeker.setPosition(-1.0, None, self.length)
 
     #/-------------------------------------------
-    # Open a youtube Video
+    # youtube
     #-------------------------------------------/
+    _yt_sig_init = QtCore.pyqtSignal("QString")
+    _yt_sig_qual = QtCore.pyqtSignal("QString")
+    _yt_sig_subs = QtCore.pyqtSignal(int)
+    def init_yt(self):
+        self.youtube = YoutubeHandler()
+        self.youtube_thread.started.connect(lambda: self.youtube.logger.info("YoutubeThread started"))
+        self.youtube_thread.terminated.connect(self.youtube.cleanupSubtitles)
+        self._yt_sig_init.connect(self.youtube.initYoutube)
+        self._yt_sig_qual.connect(self.youtube.setQuality)
+        self._yt_sig_subs.connect(self.youtube.setSubtitleTrack)
+        self.youtube.newVideoInf.connect(self.set_info)
+        self.youtube.videoUrlSet.connect(self.set_url)
+        self.youtube.subsfileSet.connect(self.set_sub)
+        self.youtube.resolveBegn.connect(self.rdg_show)
+        self.youtube.resolveDone.connect(self.rdg_hide)
+        self.youtube.resolveFail.connect(self.rdg_fail)
+        self.youtube.qualityList.connect(self.set_qlist)
+        self.youtube.newSubsList.connect(self.set_slist)
+        self.youtube.moveToThread(self.youtube_thread)
+    #Thread Delegations
     def open_vid(self):
-        self.logger_ui.debug("Opening youtube video")
         url, ok = QtGui.QInputDialog.getText(self.main_window,"Open YouTube URL","Enter a YouTube Vide URL")
-        if not ok:
-            return
-        x = self.youtube_init_video(url)
-        if x:
-            QtGui.QMessageBox.critical(self.main_window,"Youtube Video Error",x,"Dismiss")
-        else:
-            self.play()
-
-    def youtube_init_video(self, video_url):
-        # Get VideoId
-        self.logger_youtube.debug("New Video: "+video_url)
-        match = self.youtube_regexp.match(video_url)
-        if not match:
-            return self.youtube_message.format(video_url)
-        self.logger_youtube.debug("Search String: %s"%match.group(1))
-        params = sdict_parser(match.group(1))
-        self.logger_youtube.debug("Parameters: %s"%str(params))
-        if "v" not in params:
-            return self.youtube_message.format(video_url)
-        vid = params["v"]
-        # Resolve Video
-        self.logger_youtube.debug("Resolving Video: "+vid)
-        video_info = resolve.resolve3(vid)
-        if not video_info:
-            return self.resolve_message.format(vid)
-        self.video_info = video_info
-        # Create Quality List
-        self.logger_youtube.debug("Assembling Format List")
-        self.qa_map = OrderedDict()
-        for f in self.main_q_lookup:
-            if f in video_info.urlmap:
-                self.qa_map[profiles.descriptions[f]]=f
-        # Determine Initial Quality
-        self.logger_youtube.debug("Determining fitting Quality Level")
-        for f in self.pref_q_lookup:
-            if f in video_info.urlmap:
-                fmt = f
-                break;
-        else:
-            fmt = self.qa_map.values()[0]
-        # Subtitles Stuff
-        self.logger_youtube.debug("Fetching Subtitles")
-        self.yt_sub_tracks = subtitles.getTracks(vid)
-        self.clnupSub()
-        # Update UI
-        self.uilock=True
-        #Populate Subtitles ComboBox
-        self.main_window.subtitle_combo.clear()
-        self.main_window.subtitle_combo.addItem("No Subtitles", userData=None)
-        self.main_window.subtitle_combo.addItems([i.lang_original for i in self.yt_sub_tracks])
-        # Populate Quality ComboBox
-        self.main_window.quality_combo.clear()
-        self.main_window.quality_combo.addItems(list(self.qa_map.keys()))
-        self.main_window.quality_combo.setCurrentIndex(
-            self.main_window.quality_combo.findText(profiles.descriptions[fmt], flags=QtCore.Qt.MatchExactly))
-        self.uilock=False
-        # Set Quality Level
-        self.youtube_set_fmt(fmt)
-
-    def youtube_set_fmt(self,fmt):
-        self.logger_youtube.debug("Setting FMT: %i"%fmt)
-        self.fmt = fmt
-        url = self.video_info.fmt_url(fmt)
-        media = player.getInstance().media_new_location(player.vlcstring(url))
-        try:
-            media.set_meta(0, player.vlcstring(self.video_info.title))
-            media.set_meta(1, player.vlcstring(self.video_info.uploader))
-        except AttributeError:
-            pass
-        self.player.set_media(media)
-
-    def youtube_change_fmt(self,fmt):
-        pos = self.player.get_position()
-        self.logger_youtube.debug("Changing FMT: %i; pos=%i"%(fmt,pos))
-        self.youtube_set_fmt(fmt)
-        self.play()
-        self.player.set_position(pos)
-
+        if ok:
+            self._yt_sig_init.emit(url)
     def ChangeQuality(self,str_qa):
         if not self.uilock:
-            fmt = self.qa_map[str_qa]
-            self.youtube_change_fmt(fmt)
-    
+            self._yt_sig_qual.emit(str_qa)
     def ChangeSubTrack(self,i_pos):
         if self.uilock: return
-        self.clnupSub()
         if i_pos == 0:
             self.player.video_set_spu(0)
         else:
             i_pos -= 1
-            track = self.yt_sub_tracks[i_pos]
-            self.subfile = tempfile.NamedTemporaryFile("wb",prefix="vlycsub",suffix=".srt",delete=False)
-            self.subfile.writable=self.subfile.seekable=self.subfile.readable=lambda: True
-            subhandle = io.TextIOWrapper(self.subfile,encoding="utf8")
-            subhandle.write(track.getSRT())
-            subhandle.close()
-            self.subfile.close()
-            self.logger_youtube.debug("Settings Subfile: %s"%self.subfile.name)
-            self.player.video_set_subtitle_file(player.vlcstring(self.subfile.name))
-    
-    def clnupSub(self):
-        if self.subfile:
-            os.remove(self.subfile.name)
-        self.subfile = None
+            self._yt_sig_subs.emit(i_pos)
     def clnupYt(self):
-        self.clnupSub()
         self.main_window.subtitle_combo.clear()
         self.main_window.quality_combo.clear()
+    #Thread callbacks
+    def set_info(self,info):
+        self._yt_title = player.vlcstring(info.title)
+        self._yt_uploa = player.vlcstring(info.uploader)
+    def set_url(self,newurl):
+        preservepos = self.player.get_state()!=self.player.State.Stopped
+        if preservepos:
+            pos = self.player.get_position()
+        media = player.getInstance().media_new_location(player.vlcstring(newurl))
+        media.set_meta(0,self._yt_title)
+        media.set_meta(1,self._yt_uploa)
+        self.player.set_media(media)
+        self.play()
+        if preservepos:
+            self.player.set_position(pos)
+    def set_sub(self,path):
+        self.player.set_subtitle_file(player.vlcstring(path))
+    def rdg_show(self):
+        if not self.rdg:
+            self.rdg = QtGui.QMessageBox(self.main_window)
+            self.rdg.setText("Loading Youtube Video. Please Wait")
+            self.rdg.setStandardButtons(QtGui.QMessageBox.NoButton)
+        self.rdg.show()
+    def rdg_hide(self):
+        self.rdg.hide()
+    def rdg_fail(self,msg):
+        self.rdg.hide()
+        QtGui.QMessageBox.critical(self.main_window,"YouTube Error",msg)
+    def set_qlist(self,qlist,index):
+        self.uilock = True
+        self.main_window.quality_combo.clear()
+        self.main_window.quality_combo.addItems(qlist)
+        self.main_window.quality_combo.setCurrentIndex(index)
+        self.uilock = False
+    def set_slist(self,slist):
+        self.uilock = True
+        self.main_window.subtitle_combo.clear()
+        self.main_window.subtitle_combo.addItems(["No Subtitles"]+slist)
+        self.uilock = False
 
     #/-------------------------------------------
     # open any video
@@ -745,5 +906,5 @@ class VlycApplication(QtGui.QApplication):
 
 if __name__=="__main__":
     app = VlycApplication(sys.argv)
-    logging.basicConfig(level=logging.DEBUG,format="[%(msecs)09.3f] %(levelname)-6s %(name)s:\r\n\t%(msg)s")
+    logging.basicConfig(level=logging.DEBUG,format="[%(relativeCreated)09d] %(levelname)-6s %(name)s:\r\n\t%(msg)s")
     app.main()

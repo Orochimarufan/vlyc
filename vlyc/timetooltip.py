@@ -59,7 +59,7 @@ private:
                             QtCore.Qt.X11BypassWindowManagerHint);
         self.setAttribute(QtCore.Qt.WA_OpaquePaintEvent);
         if platform=="win32":
-            self.setAttribute(QtCore.Qt.WA_ShowWindowWithoutActivating);
+            self.setAttribute(98);# Not in PyQt4? QtCore.Qt.WA_ShowWindowWithoutActivating
         self.mFont = QtGui.QFont("Verdana", max(self.font().pointSize()-5, 7));
         self.mTipX = -1;
         self.mTarget = None;

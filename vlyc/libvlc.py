@@ -69,7 +69,7 @@ def find_lib():
         p = find_library('libvlc.dll')
         if p is None:
             try:  # some registry settings
-                import _winreg as w  # leaner than win32api, win32con
+                import winreg as w  # leaner than win32api, win32con
                 for r in w.HKEY_LOCAL_MACHINE, w.HKEY_CURRENT_USER:
                     try:
                         r = w.OpenKey(r, 'Software\\VideoLAN\\VLC')
