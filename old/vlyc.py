@@ -16,7 +16,7 @@ sip.setapi("QString",2)
 from PyQt4 import QtCore,QtGui
 from vlyc.vlyc_gui import Ui_MainWindow
 import sys,re
-from vlyc import libvlc
+from vlc import libvlc
 from collections import OrderedDict
 import logging
 

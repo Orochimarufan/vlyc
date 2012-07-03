@@ -25,8 +25,8 @@ A libvlc based MediaPlayer that supports Youtube Videos and Quality Selection
 
 Others
 ------
-File: `vlyc/vlyc.py`  
-Early version of vlyc2.py. Do not use.
+File: `old/*`  
+Old Stuff and tests
 
 File: `testPlayer.py`  
 commandline MediaPlayer using the libvlc api and vlyc Player class

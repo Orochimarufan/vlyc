@@ -24,27 +24,35 @@
 """
 
 from __future__ import absolute_import, unicode_literals, print_function, division
+import sys
+import os
 import logging
+import io
+import re
+import collections
+import tempfile
 from sip import setapi
 setapi("QString", 2)
 setapi("QVariant",2)
 from PyQt4 import QtCore, QtGui
-import re, sys, os
+from vlc import player, vlcevent, util
+
+#VLYC
 from vlyc import const
 const.root_logger = logging.getLogger("vlyc.gui") #FIXME: find a better way to do it
-from vlyc import player, vlc_res, input_slider, widgets #@UnresolvedImport
-from vlyc.controller import FullscreenControllerWidget
+from vlyc import vlc_res, input_slider, widgets, fullscreen
+
+#LibYo
 from libyo.youtube import resolve,subtitles #@UnresolvedImport
 from libyo.youtube.resolve import profiles #@UnresolvedImport
 from libyo.util.util import sdict_parser #@UnresolvedImport
 from libyo.argparse import LibyoArgumentParser #@UnresolvedImport
 from libyo.compat.uni import u as unicode, nativestring #@UnresolvedImport
 from libyo.version import Version
-from collections import OrderedDict
-import tempfile, io
+
 _unused = [vlc_res]; del _unused
 
-__VERSION__ = (0,1,1)
+__VERSION__ = (0,1,2)
 VERSION = Version("vlyc",*__VERSION__)
 
 class MainWindow(QtGui.QMainWindow):
@@ -116,12 +124,12 @@ class MainWindow(QtGui.QMainWindow):
         self.fullscreen_button.setIcon(QtGui.QIcon(":/toolbar/fullscreen"))
         self.fullscreen_button.setFocusPolicy(QtCore.Qt.NoFocus)
         self.control_layout.addWidget(self.fullscreen_button)
-        
+
         self.subtitle_combo = QtGui.QComboBox(self.root_widget)
         self.subtitle_combo.setObjectName("subtitle_combo")
         self.subtitle_combo.setFocusPolicy(QtCore.Qt.NoFocus)
         self.control_layout.addWidget(self.subtitle_combo)
-        
+
         self.quality_combo = QtGui.QComboBox(self.root_widget)
         self.quality_combo.setObjectName("quality_combo")
         self.quality_combo.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -188,52 +196,7 @@ class MainWindow(QtGui.QMainWindow):
         self.getSettings().setValue("MainWindow/position",self.pos())
         self.getSettings().setValue("MainWindow/size",self.size())
 
-class FullscreenController(type("FullscreenController", (QtGui.QFrame, ), dict(FullscreenControllerWidget.__dict__))):
-    """
-    Quick Fix for non-availability of the Full VLC-qt4 Controller Interface
-    """
-    def __init__(self,parent):
-        QtGui.QFrame.__init__(self,parent) #No super magic because of our monkey-patching (see the class def line ;))
-
-        self.logger = const.root_logger.getChild("FullscreenController") #@UndefinedVariable
-
-        self.i_mouse_last_x      = -1;
-        self.i_mouse_last_y      = -1;
-        self.b_mouse_over        = False;
-        self.i_mouse_last_move_x = -1;
-        self.i_mouse_last_move_y = -1;
-        self.b_fullscreen        = False;
-        self.i_hide_timeout      = 5000;
-        self.i_screennumber      = -1;
-
-        self.setWindowFlags(QtCore.Qt.ToolTip);
-
-        self.setFrameShape(QtGui.QFrame.StyledPanel);
-        self.setFrameStyle(QtGui.QFrame.Sunken);
-        self.setSizePolicy(QtGui.QSizePolicy.Minimum,QtGui.QSizePolicy.Minimum);
-
-        self.controlLayout = QtGui.QVBoxLayout(self);
-        self.controlLayout.setContentsMargins(0, 0, 0, 0);
-
-        self.inputLayout = self.createUiInput();
-        self.controlLayout.addLayout(self.inputLayout);
-
-        self.fscLayout = self.createUiFscToolbar();
-        self.controlLayout.addLayout(self.fscLayout);
-
-        self.p_hideTimer = QtCore.QTimer(self);
-        self.p_hideTimer.setSingleShot(True);
-        self.connect(self.p_hideTimer, QtCore.SIGNAL("timeout()"),
-                     self.hideFSC);
-
-        self.previousPosition = self.getSettings().value("FullScreen/pos",QtCore.QPoint(0,0));
-        self.screenRes = self.getSettings().value("FullScreen/screen",None);
-        self.isWideFSC = (self.getSettings().value("FullScreen/wide",False) not in ("false", False, "False"));
-        self.halfSize = self.getSettings().value("FullScreen/size",QtCore.QSize(const.FSC_WIDTH,const.FSC_HEIGHT));
-
-        self.setMinimumSize(self.halfSize)
-        #self.i_screennumber = 0;
-
+class FullscreenController(fullscreen.Controller):
     def createUiInput(self):
         layout = QtGui.QHBoxLayout()
 
@@ -252,6 +215,7 @@ class FullscreenController(type("FullscreenController", (QtGui.QFrame, ), dict(F
 
         self.play_b = widgets.PlayButton()
         self.play_b.setObjectName("fscPlayButton")
+        self.play_b.setShortcut(" ")
         layout.addWidget(self.play_b)
 
         self.stop_b = QtGui.QToolButton()
@@ -264,6 +228,7 @@ class FullscreenController(type("FullscreenController", (QtGui.QFrame, ), dict(F
         self.fullscreen = QtGui.QToolButton()
         self.fullscreen.setObjectName("fscFullscreenButton")
         self.fullscreen.setIcon(QtGui.QIcon(":/toolbar/defullscreen"))
+        self.fullscreen.setShortcut("Esc")
         layout.addWidget(self.fullscreen)
 
         layout.addSpacing(20)
@@ -273,52 +238,6 @@ class FullscreenController(type("FullscreenController", (QtGui.QFrame, ), dict(F
         layout.addWidget(self.sound_w)
 
         return layout
-
-    def setFullscreen(self, b_fs):
-        const.root_logger.getChild("FullscreenController").debug("Setting Fullscreen: %s"%b_fs) #@UndefinedVariable
-        self.b_fullscreen = b_fs
-        vw = self.parentWidget()
-        vw.setMouseTracking(b_fs)
-        if b_fs:
-            vw.mM.connect(self.mouseChanged)
-        else:
-            vw.mM.disconnect(self.mouseChanged)
-            self.hideFSC()
-
-    def targetScreen(self):
-        if (self.i_screennumber==-1 or self.i_screennumber>QtGui.QApplication.desktop().numScreens()):
-            return QtGui.QApplication.desktop().screenNumber(self.parentWidget());
-        return self.i_screennumber;
-
-    def restoreFSC(self):
-        if (not self.isWideFSC):
-            # restore Half-bar and re-center it if needed
-            self.setMinimumWidth(self.halfSize.width());
-            self.adjustSize();
-
-            currentRes = QtGui.QApplication.desktop().screenGeometry(self.targetScreen());
-
-            if (currentRes == self.screenRes and \
-                QtGui.QApplication.desktop().screen().geometry().contains(self.previousPosition,True)):
-                # Restore to the last known position
-                self.move(self.previousPosition);
-            else:
-                # FSC is out of screen or screen Resolution changed
-                self.logger.debug("Recentering the Fullscreen Controller");
-                self.centerFSC(self.targetScreen());
-                self.screenRes = currentRes;
-                self.previousPosition = self.pos();
-        else:
-            # Dock at the bottom of the screen
-            self.updateFullWidthGeometry(self.targetScreen());
-
-    __del__ = None
-
-    def savePosition(self):
-        self.getSettings().setValue("FullScreen/pos",self.previousPosition)
-        self.getSettings().setValue("Fullscreen/screen",self.screenRes)
-        self.getSettings().setValue("FullScreen/wide",self.isWideFSC)
-        self.getSettings().setValue("FullScreen/size",self.halfSize)
 
 class YoutubeHandler(QtCore.QObject):
     """
@@ -381,7 +300,7 @@ class YoutubeHandler(QtCore.QObject):
         self.initSubtitles(video_id)
         #Done
         self.resolveDone.emit()
-    
+
     #/-------------------------------------------
     # Video URL Handling
     #-------------------------------------------/
@@ -401,7 +320,7 @@ class YoutubeHandler(QtCore.QObject):
         self.newVideoInf.emit(video_info)
         #Create Quality List
         self.logger.debug("Assembling Format List")
-        self.qa_map = OrderedDict()
+        self.qa_map = collections.OrderedDict()
         for f in self.main_q_lookup:
             if f in video_info.urlmap:
                 self.qa_map[profiles.descriptions[f]]=f
@@ -443,7 +362,7 @@ class YoutubeHandler(QtCore.QObject):
         self.logger.debug("Initializing Subtitles for Video '%s'"%self.video_info.title)
         self.subtitle_tracks = subtitles.getTracks(video_id)
         self.newSubsList.emit([t.lang_original for t in self.subtitle_tracks])
-    
+
     @QtCore.pyqtSlot(int)
     def setSubtitleTrack(self,i):
         """
@@ -507,7 +426,7 @@ class VlycApplication(QtGui.QApplication):
         self.argument_parser.add_argument("--quit",action="store_true", dest="quit_after",
                                           help="Quit after playing MRL")
         self.argument_parser.add_argument("---", metavar="", nargs="A...?", dest="vlcargs",
-                                          type=player.vlcstring, action="append", default=None,
+                                          type=util.vlcstring, action="append", default=None,
                                           help="Pass all remaining args to libvlc directly. For help, try '%(prog)s --- --help'. Not all listed Arguments will work as expected! Use on your own account")
 
     def argument_parser_execute(self):
@@ -610,14 +529,14 @@ class VlycApplication(QtGui.QApplication):
         self.connect(self.main_window.quality_combo, QtCore.SIGNAL("currentIndexChanged(const QString&)"), self.ChangeQuality)
         self.connect(self.main_window.subtitle_combo, QtCore.SIGNAL("currentIndexChanged(int)"), self.ChangeSubTrack)
         self.main_window.fullscreen_button.clicked.connect(self.toggleFullscreen)
-        
+
         #/---------------------------------------
         # Set up Youtube Thread
         #---------------------------------------/
         self.youtube_thread = QtCore.QThread()
         self.init_yt()
         self.youtube_thread.start()
-        
+
         #/---------------------------------------
         # libvlc Player embedding
         #---------------------------------------/
@@ -634,8 +553,8 @@ class VlycApplication(QtGui.QApplication):
 
         #DEBUG
         def debug(evt):
-            if evt.type not in (self.player.mpManager.mpEvent.TimeChanged,
-                                self.player.mpManager.mpEvent.PositionChanged):
+            if evt.type not in (vlcevent.mpEvent.TimeChanged,
+                                vlcevent.mpEvent.PositionChanged):
                 self.logger_event.getChild("LibVLC").debug(evt.type)
         #self.player.mpManager.set_debug(debug)
 
@@ -714,7 +633,7 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
         self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
         if self.subfile:
-            self.player.video_set_subtitle_file(player.vlcstring(self.subfile.name))
+            self.player.video_set_subtitle_file(util.vlcstring(self.subfile.name))
         return x
     def stop(self):
         self.player.stop()
@@ -789,13 +708,13 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.quality_combo.clear()
     #Thread callbacks
     def set_info(self,info):
-        self._yt_title = player.vlcstring(info.title)
-        self._yt_uploa = player.vlcstring(info.uploader)
+        self._yt_title = util.vlcstring(info.title)
+        self._yt_uploa = util.vlcstring(info.uploader)
     def set_url(self,newurl):
         preservepos = self.player.get_state()!=self.player.State.Stopped
         if preservepos:
             pos = self.player.get_position()
-        media = player.getInstance().media_new_location(player.vlcstring(newurl))
+        media = player.getInstance().media_new_location(util.vlcstring(newurl))
         media.set_meta(0,self._yt_title)
         media.set_meta(1,self._yt_uploa)
         self.player.set_media(media)
@@ -803,7 +722,7 @@ class VlycApplication(QtGui.QApplication):
         if preservepos:
             self.player.set_position(pos)
     def set_sub(self,path):
-        self.player.set_subtitle_file(player.vlcstring(path))
+        self.player.video_set_subtitle_file(util.vlcstring(path))
     def rdg_show(self):
         if not self.rdg:
             self.rdg = QtGui.QMessageBox(self.main_window)

@@ -81,7 +81,7 @@ def find_lib():
             except ImportError:  # no PyWin32
                 pass
             if plugin_path is None:
-                 # try some standard locations.
+                # try some standard locations.
                 for p in ('Program Files\\VideoLan\\', 'VideoLan\\',
                           'Program Files\\',           ''):
                     p = 'C:\\' + p + 'VLC\\libvlc.dll'
@@ -91,9 +91,9 @@ def find_lib():
             if plugin_path is not None:  # try loading
                 p = os.getcwd()
                 os.chdir(plugin_path)
-                 # if chdir failed, this will raise an exception
+                # if chdir failed, this will raise an exception
                 dll = ctypes.CDLL('libvlc.dll')
-                 # restore cwd after dll has been loaded
+                # restore cwd after dll has been loaded
                 os.chdir(p)
             else:  # may fail
                 dll = ctypes.CDLL('libvlc.dll')
@@ -127,7 +127,7 @@ class VLCException(Exception):
     pass
 
 try:
-    _Ints = (int, long)
+    _Ints = (int, long) #@UndefinedVariable
 except NameError:  # no long in Python 3+
     _Ints =  int
 _Seqs = (list, tuple)
@@ -237,7 +237,7 @@ def class_result(classname):
         return classname(result)
     return wrap_errcheck
 
- # Generated enum types #
+# Generated enum types #
 
 class _Enum(ctypes.c_uint):
     '''(INTERNAL) Base class
@@ -579,9 +579,9 @@ AudioOutputChannel.RStereo = AudioOutputChannel(2)
 AudioOutputChannel.Right   = AudioOutputChannel(4)
 AudioOutputChannel.Stereo  = AudioOutputChannel(1)
 
- # End of generated enum types #
+# End of generated enum types #
 
- # From libvlc_structures.h
+# From libvlc_structures.h
 
 class AudioOutput(_Cstruct):
 
@@ -769,7 +769,7 @@ def module_description_list(head):
         libvlc_module_description_list_release(head)
     return r
 
- # End of header.py #
+# End of header.py #
 
 class EventManager(_Ctype):
     '''Create an event manager with callback handler.
@@ -814,7 +814,7 @@ class EventManager(_Ctype):
             raise VLCException("%s required: %r" % ('EventType', eventtype))
         if not hasattr(callback, '__call__'):  # callable()
             raise VLCException("%s required: %r" % ('callable', callback))
-         # check that the callback expects arguments
+        # check that the callback expects arguments
         if not any(getargspec(callback)[:2]):  # list(...)
             raise VLCException("%s required: %r" % ('argument', callback))
 
@@ -830,7 +830,7 @@ class EventManager(_Ctype):
                 """
                 try: # retrieve Python callback and arguments
                     call, args, kwds = self._callbacks[k]
-                     # deref event.contents to simplify callback code
+                    # deref event.contents to simplify callback code
                     call(event.contents, *args, **kwds)
                 except KeyError:  # detached?
                     pass
@@ -881,8 +881,8 @@ class Instance(_Ctype):
                 raise VLCException('Instance %r' % (args,))
 
         if not args and plugin_path is not None:
-             # no parameters passed, for win32 and MacOS,
-             # specify the plugin_path if detected earlier
+            # no parameters passed, for win32 and MacOS,
+            # specify the plugin_path if detected earlier
             args = ['vlc', '--plugin-path=' + plugin_path]
         return libvlc_new(len(args), args)
 
@@ -2775,7 +2775,7 @@ class MediaPlayer(_Ctype):
         return libvlc_audio_set_delay(self, i_delay)
 
 
- # LibVLC __version__ functions #
+# LibVLC __version__ functions #
 
 def libvlc_errmsg():
     '''A human-readable error message for the last LibVLC error in the calling
@@ -5595,7 +5595,7 @@ if __name__ == '__main__':
                 print('Video size: %s' % str(player.video_get_size(0)))  # num=0
                 print('Scale: %s' % player.video_get_scale())
                 print('Aspect ratio: %s' % player.video_get_aspect_ratio())
-               #print('Window:' % player.get_hwnd()
+                #print('Window:' % player.get_hwnd()
             except Exception:
                 print('Error: %s' % sys.exc_info()[1])
 
@@ -5652,7 +5652,7 @@ if __name__ == '__main__':
             if k in keybindings:
                 keybindings[k]()
             elif k.isdigit():
-                 # jump to fraction of the movie.
+                # jump to fraction of the movie.
                 player.set_position(float('0.'+k))
 
     else:
