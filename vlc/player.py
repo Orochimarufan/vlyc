@@ -173,6 +173,7 @@ class Player(QtCore.QObject):
     # Methods / Slots
     #-------------------------------------------------------/
     def open_media(self, mrl):
+        mrl = util.pystring(mrl)
         if ":" in mrl and mrl.index(":")>1:
             media = self.Instance.media_new_location(util.vlcstring(mrl))
         else:

@@ -86,6 +86,7 @@ class VlycApplication(QtGui.QApplication):
                                           help="Pass all remaining args to libvlc directly. For help, try '%(prog)s --- --help'. Not all listed Arguments will work as expected! Use on your own account")
 
     def argument_parser_execute(self):
+        self.logger.debug("Args: %s"%self.arguments())
         self.args = self.argument_parser.parse_args(self.arguments()[1:])
 
     def main(self):
@@ -153,6 +154,7 @@ class VlycApplication(QtGui.QApplication):
         self.rdg = None
         self._yt_title = None
         self._yt_uploa = None
+        self._yt_is_video = False
         self.about_dlg = None
 
         #/---------------------------------------
@@ -222,6 +224,7 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.show()
         # Play first file if given on commandline
         if self.args.init_mrl is not None:
+            self.logger.info("Opening '%s'"%self.args.init_mrl)
             self.player.open(self.args.init_mrl)
             self.play()
             if self.args.fullscreen:
@@ -243,6 +246,8 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.savePosition()
         if self.fs_controller: self.fs_controller.savePosition()
         self.settings.sync()
+		
+        return 0
 
     #/-------------------------------------------
     # Event Slots

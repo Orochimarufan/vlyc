@@ -24,6 +24,7 @@
 
 from __future__ import absolute_import, unicode_literals
 
+import sys
 import logging
 
 from PyQt4 import QtCore
@@ -247,6 +248,7 @@ class AboutDialog(QtGui.QDialog):
         
         from libyo.version import Version;
         from vlc.libvlc import libvlc_get_version;
+        from platform import platform,architecture,machine,python_version,python_implementation;
         self.about_text = QtGui.QTextEdit(self);
         self.about_text.setObjectName("about_text");
         self.about_text.setReadOnly(True);
@@ -258,7 +260,8 @@ The Program name is based soely on the fact that it uses the VLC library.<br>
 <hr>
 <table><tbody>
 <tr><td colspan=2><b>Library Versions</b></td></tr>
-<tr><td>Python</td><td>{python_version}</td></tr>
+<tr><td>Platform</td><td>{platform} ({arch})</td></tr>
+<tr><td>Python</td><td>{python_version} {python_implementation}{frozen}</td></tr>
 <tr><td>libvlc</td><td>{libvlc_version}</td></tr>
 <tr><td>libyo</td><td>{libyo_version}</td></tr>
 <tr><td>Qt</td><td>{qt_version}</td></tr>
@@ -289,12 +292,16 @@ GNU General Public License for more details.<br>
 <br>
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see &lt;<a href="http://www.gnu.org/licenses/">http://www.gnu.org/licenses/</a>&gt;.<br>
-""").format(python_version=Version.PythonVersion.format(), #@UndefinedVariable
+""").format(python_version=python_version(),
+            python_implementation=python_implementation(),
+            frozen=" (frozen binary distribution)" if hasattr(sys,"frozen") else "",
             vlyc_version=QtCore.QCoreApplication.instance().applicationVersion(),
             libvlc_version=str(libvlc_get_version(),"latin-1"),
             libyo_version=Version.LibyoVersion.format(), #@UndefinedVariable
             qt_version=QtCore.qVersion(),
-            pyqt4_version=QtCore.PYQT_VERSION_STR));
+            pyqt4_version=QtCore.PYQT_VERSION_STR,
+            platform=platform(),
+            arch="%s on %s"%(architecture()[0],machine())));
         self.about_text.setFocusPolicy(QtCore.Qt.NoFocus);
         self.root_layout.addWidget(self.about_text);
         

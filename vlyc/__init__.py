@@ -1,4 +1,4 @@
-__VERSION__=(0,1,3)
-VERSION = "0.1.3 Twoflower"
+__VERSION__=(0,1,4)
+VERSION = "0.1.4 Twoflower"
 LONGREV = "exported"
 SHORTREV = "dev"
