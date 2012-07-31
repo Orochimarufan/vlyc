@@ -68,6 +68,7 @@ class VlycApplication(QtGui.QApplication):
     def __init__(self, argv=None):
         if argv is None:
             argv = sys.argv;
+        self.py_argv = argv
         super(VlycApplication, self).__init__(argv)
 
         self.setOrganizationDomain("fanirc.net")
@@ -87,8 +88,10 @@ class VlycApplication(QtGui.QApplication):
                                           help="Pass all remaining args to libvlc directly. For help, try '%(prog)s --- --help'. Not all listed Arguments will work as expected! Use on your own account")
 
     def argument_parser_execute(self):
-        #self.logger.debug("Args: %s"%self.arguments())
-        self.args = self.argument_parser.parse_args(self.arguments()[1:])
+        argv = self.arguments()
+        if sys.platform=="win32": #qApp.arguments() is doing its own stuff on windows
+           argv = self.py_argv
+        self.args = self.argument_parser.parse_args(argv[1:])
 
     def main(self):
         #/---------------------------------------
@@ -332,6 +335,7 @@ class VlycApplication(QtGui.QApplication):
         b_playing = i_state in (self.player.State.Playing, self.player.State.Buffering)
         self.main_window.play_button.updateButtonIcons(b_playing)
         if b_playing:
+            if self.rdg and self.rdg.isVisible(): self.rdg_hide() #because of windows slowness it might be blocking the view
             self.length = self.player.get_length()
             self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
             self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())

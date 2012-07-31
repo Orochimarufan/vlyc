@@ -5,7 +5,7 @@
 print("Loading Build System...")
 from cx_Freeze import setup, Executable
 import sys, os.path, re
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, call
 
 #release_tarball = ("install" in sys.argv)
 
@@ -17,7 +17,7 @@ if sys.platform=="win32":
     if "--win32-console" in sys.argv:
         base=None
         inits=None
-        sys.argv.remove("--win32-gui-log")
+        sys.argv.remove("--win32-console")
     else:
         base='Win32GUI'
         if "--win32-gui-log" in sys.argv:
@@ -46,13 +46,21 @@ pipe = Popen(["git","rev-list","--all"],stdout=PIPE)
 pipe.wait()
 rev = len(pipe.stdout.read().decode("utf8").strip().split("\n"))
 
+clean = call(["git","diff-files","--quiet"])==0 and \
+        call(["git","diff-index","--quiet","HEAD"])==0
+
 if sys.platform=="win32":
-    version = Version.LibyoVersion.format("{0}.{1}.{2}{patch_i:02}.{{0}}").format(rev)
+    if clean:
+        version = Version.LibyoVersion.format("{0}.{1}.{2}{patch_i:02}.{{0}}").format(rev)
+    else:
+        version = Version.LibyoVersion.format("{0}.{1}.{2}{patch_i:02}.{{0}}").format(%int(rev)+1) #all we CAN do with stupid restrictions on windows version numbers
 else:
     pipe = Popen(["git","rev-list","HEAD","-n1","--abbrev-commit"],stdout=PIPE)
     pipe.wait()
     git = pipe.stdout.read().decode("utf8").strip()
     version = Version.LibyoVersion.format("{0}.{1}.{2}.{patch_i}-{{0}}git{{1}}").format(rev,git)
+    if not clean:
+        version+="-unclean"
 
 print(version)
 with open("VERSION","w") as v:
