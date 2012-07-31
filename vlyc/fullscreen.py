@@ -27,6 +27,7 @@ from __future__ import absolute_import, unicode_literals
 from PyQt4 import QtCore, QtGui
 from . import const
 from . import util
+from .settings import Settings
 
 class Controller(QtGui.QFrame):#type("FullscreenController", (QtGui.QFrame, ), dict(FullscreenControllerWidget.__dict__))):
     def __init__(self,parent):
@@ -40,7 +41,7 @@ class Controller(QtGui.QFrame):#type("FullscreenController", (QtGui.QFrame, ), d
         self.i_mouse_last_move_x = -1;
         self.i_mouse_last_move_y = -1;
         self.b_fullscreen        = False;
-        self.i_hide_timeout      = 5000;
+        self.i_hide_timeout      = int(Settings()["FullScreen":"hide_timeout":5000]);
         self.i_screennumber      = -1;
 
         self.setWindowFlags(QtCore.Qt.ToolTip);
@@ -63,10 +64,10 @@ class Controller(QtGui.QFrame):#type("FullscreenController", (QtGui.QFrame, ), d
         self.connect(self.p_hideTimer, QtCore.SIGNAL("timeout()"),
                      self.hideFSC);
 
-        self.previousPosition = self.getSettings().value("FullScreen/pos",QtCore.QPoint(0,0));
-        self.screenRes = self.getSettings().value("FullScreen/screen",None);
-        self.isWideFSC = (self.getSettings().value("FullScreen/wide",False) not in ("false", False, "False"));
-        self.halfSize = self.getSettings().value("FullScreen/size",QtCore.QSize(const.FSC_WIDTH,const.FSC_HEIGHT));
+        self.previousPosition = Settings().value("FullScreen/pos",QtCore.QPoint(0,0));
+        self.screenRes = Settings().value("FullScreen/screen",None);
+        self.isWideFSC = (Settings().value("FullScreen/wide",False) not in ("false", False, "False"));
+        self.halfSize = Settings().value("FullScreen/size",QtCore.QSize(const.FSC_WIDTH,const.FSC_HEIGHT));
 
         self.setMinimumSize(self.halfSize)
         #self.i_screennumber = 0;
@@ -74,12 +75,7 @@ class Controller(QtGui.QFrame):#type("FullscreenController", (QtGui.QFrame, ), d
     def setFullscreen(self, b_fs):
         const.root_logger.getChild("FullscreenController").debug("Setting Fullscreen: %s"%b_fs) #@UndefinedVariable
         self.b_fullscreen = b_fs
-        vw = self.parentWidget()
-        vw.setMouseTracking(b_fs)
-        if b_fs:
-            vw.mM.connect(self.mouseChanged)
-        else:
-            vw.mM.disconnect(self.mouseChanged)
+        if not b_fs:
             self.hideFSC()
 
     def targetScreen(self):
@@ -110,10 +106,10 @@ class Controller(QtGui.QFrame):#type("FullscreenController", (QtGui.QFrame, ), d
             self.updateFullWidthGeometry(self.targetScreen());
 
     def savePosition(self):
-        self.getSettings().setValue("FullScreen/pos",self.previousPosition)
-        self.getSettings().setValue("Fullscreen/screen",self.screenRes)
-        self.getSettings().setValue("FullScreen/wide",self.isWideFSC)
-        self.getSettings().setValue("FullScreen/size",self.halfSize)
+        Settings().setValue("FullScreen/pos",self.previousPosition)
+        Settings().setValue("Fullscreen/screen",self.screenRes)
+        Settings().setValue("FullScreen/wide",self.isWideFSC)
+        Settings().setValue("FullScreen/size",self.halfSize)
 
     def centerFSC(self, number):
         currentRes = QtGui.QApplication.desktop().screenGeometry(number);

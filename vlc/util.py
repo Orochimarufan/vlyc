@@ -83,13 +83,21 @@ vlcenum = lambda enum: Enum(enum.__name__, **dict([(n, v) for v,n in enum._enum_
 #+--------------------------------------------------------------------------------+
 #| Some Defs for Python2 / Python3 differences                                    |
 #\--------------------------------------------------------------------------------/
+def _typeconv(n,t,*a):
+    """ Helper to create Type converters """
+    def typeconv(d):
+        if not isinstance(d,t):
+            d = t(d,*a)
+        return d
+    typeconv.__name__ = n
+    return typeconv
 if sys.hexversion>0x3000000:
     _Ints       = int
     _Strings    = str
-    vlcstring   = lambda s: bytes(s,"utf8")
-    pystring    = lambda s: str(s,"utf8")
+    vlcstring   = _typeconv("vlcstring",bytes,"UTF-8")
+    pystring    = _typeconv("pystring",str,"UTF-8")
 else:
     _Ints       = int, long #@UndefinedVariable
     _Strings    = unicode, str #@UndefinedVariable
-    vlcstring   = lambda s: str(s,"utf8")
-    pystring    = lambda s: unicode(s,"utf8") #@UndefinedVariable
+    vlcstring   = _typeconv(str("vlcstring"),str,"utf8")
+    pystring    = _typeconv(str("pystring"),unicode,"utf8") #@UndefinedVariable

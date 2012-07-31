@@ -22,6 +22,10 @@
  *****************************************************************************/
 """
 from vlc.util import Enum,AutoEnum
+if __debug__:
+    import sys
+    import traceback
+from PyQt4 import QtCore
 
 class OnObject(object):
     """
@@ -55,3 +59,53 @@ class WithMeta(object):
         self.meta = meta
     def __call__(self,klass):
         return self.meta(klass.__name__,klass.__bases__,dict(klass.__dict__))
+
+class _Singleton(type):
+    """Singleton MetaClass."""
+    
+    def __init__(cls,name,bases,dct):
+        super(_Singleton,cls).__init__(name,bases,dct)
+        cls._Singleton_Instance = None
+        if __debug__:
+            cls._Singleton_Frame = None
+    
+    def __call__(cls,*args,**kwds):
+        if cls._Singleton_Instance is None:
+            cls.__create__(*args,**kwds)
+        return cls._Singleton_Instance
+    
+    def __create__(cls,*args,**kwds):
+        if __debug__:
+            cls._Singleton_Frame = sys._getframe(2) #if everythin's right, the user's code is 2 frames away.
+        cls._Singleton_Instance = super(_Singleton,cls).__call__(*args,**kwds)
+    
+    def Instance(cls):
+        if cls._Singleton_Instance is None:
+            raise RuntimeError("Singleton '%s' was not initialized."%cls.__name__)
+        return cls._Singleton_Instance
+    
+    def Init(cls,*args,**kwds):
+        if cls._Singleton_Instance is not None:
+            if __debug__:
+                raise RuntimeError("Singleton '%s' already initialized\nFirst Initialization at '%s' Line %i:\n%s"%
+                    (cls.__name__,cls._Singleton_Frame.f_code.co_filename,cls._Singleton_Frame.f_lineno,
+                    "\n".join(traceback.format_stack(cls._Singleton_Frame))))
+            raise RuntimeError("Singleton '%s' already initialized")
+        else:
+            cls.__create__(*args,**kwds)
+            return cls._Singleton_Instance
+    
+    def _DELETE_(cls):
+        cls._Singleton_Instance = None
+
+Singleton = WithMeta(_Singleton)
+
+class _QSingleton(QtCore.pyqtWrapperType,_Singleton):
+    #PyQt's Meta Wrapper doesn't hand down __init__.
+    def __init__(cls,name,bases,dct):
+        super(_QSingleton,cls).__init__(name,bases,dct)
+        cls._Singleton_Instance = None
+        if __debug__:
+            cls._Singleton_Frame = None
+
+QSingleton = WithMeta(_QSingleton)

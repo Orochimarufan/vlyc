@@ -43,7 +43,8 @@ from vlc import vlcevent
 
 from . import const
 const.root_logger = logging.getLogger("vlyc.gui")
-from . import VERSION
+from . import VERSION_STRING, CODENAME, VERSION
+from . import settings
 
 from .ui import MainWindow
 from .ui import FullscreenController
@@ -72,7 +73,7 @@ class VlycApplication(QtGui.QApplication):
         self.setOrganizationDomain("fanirc.net")
         self.setOrganizationName("Orochimarufan")
         self.setApplicationName("VLYC")
-        self.setApplicationVersion(VERSION)
+        self.setApplicationVersion(VERSION_STRING)
 
         self.argument_parser = LibyoArgumentParser(prog = self.arguments()[0], usage = "%(prog)s [MRL] [--- ARG [...]]")
         self.argument_parser.add_argument(metavar="MRL", nargs="?", dest="init_mrl", type=util.vlcstring,
@@ -86,7 +87,7 @@ class VlycApplication(QtGui.QApplication):
                                           help="Pass all remaining args to libvlc directly. For help, try '%(prog)s --- --help'. Not all listed Arguments will work as expected! Use on your own account")
 
     def argument_parser_execute(self):
-        self.logger.debug("Args: %s"%self.arguments())
+        #self.logger.debug("Args: %s"%self.arguments())
         self.args = self.argument_parser.parse_args(self.arguments()[1:])
 
     def main(self):
@@ -120,16 +121,18 @@ class VlycApplication(QtGui.QApplication):
                     Please consider upgrading to libvlc 2.0.0 or higher (http://videolan.org)"""\
                                     %Version("libvlc",player.libvlc_version()).format())
         self.logger.info("libvlc Version: %s"%player.libvlc_versionstring())
+        
+        self.logger.info("VideoLan Youtube Client %s '%s'"%(".".join(map(str,VERSION)),CODENAME))
 
         #/---------------------------------------
         # Load Settings
         #---------------------------------------/
-        self.settings = QtCore.QSettings()
+        self.settings = settings.Settings.Init()
         const.QT_SLIDER_COLORS = self.settings.value("SeekSlider/Colors", const.QT_SLIDER_COLORS)
-        const.FSC_HEIGHT = self.settings.value("Fullscreen/Height", const.FSC_HEIGHT)
-        const.FSC_WIDTH = self.settings.value("Fullscreen/Width", const.FSC_WIDTH)
+        const.FSC_HEIGHT = self.settings.value("FullScreen/Height", const.FSC_HEIGHT)
+        const.FSC_WIDTH = self.settings.value("FullScreen/Width", const.FSC_WIDTH)
         const.VOLUME_STEP = self.settings.value("SoundWidget/Step", const.VOLUME_STEP)
-        QtCore.QObject.getSettings = lambda o: self.settings #TODO: is that the right way to do it?
+        YoutubeHandler.pref_q_lookup = map(int,self.settings["Youtube":"PreferredQualities":[22,18,5]])
 
         #/---------------------------------------
         # Initialize Player and GUI
@@ -141,6 +144,8 @@ class VlycApplication(QtGui.QApplication):
         self.player = player.Player()
         self.main_window.setWindowTitle(self.window_title_1)
         self.player.mediaChanged.connect(self.newMedia)
+        self.player.MediaPlayer.video_set_mouse_input(False)
+        self.player.MediaPlayer.video_set_key_input(False)
 
         #/---------------------------------------
         # Initialize Attributes
@@ -189,6 +194,16 @@ class VlycApplication(QtGui.QApplication):
         self.connect(self.main_window.quality_combo, QtCore.SIGNAL("currentIndexChanged(const QString&)"), self.ChangeQuality)
         self.connect(self.main_window.subtitle_combo, QtCore.SIGNAL("currentIndexChanged(int)"), self.ChangeSubTrack)
         self.main_window.fullscreen_button.clicked.connect(self.toggleFullscreen)
+        
+        #/---------------------------------------
+        # Shortcuts
+        #---------------------------------------/
+        self.shortcut_esc = QtGui.QShortcut("Esc",self.main_window.video_widget)
+        self.shortcut_esc.activated.connect(lambda: self.setFullscreen(False))
+        self.shortcut_f11 = QtGui.QShortcut("F11",self.main_window)
+        self.shortcut_f11.activated.connect(self.toggleFullscreen)
+        self.shortcut_f11.setContext(2) #App-wide
+        self.main_window.video_widget.MouseDoubleClick.connect(self.toggleFullscreen)
 
         #/---------------------------------------
         # Set up Youtube Thread
@@ -205,6 +220,7 @@ class VlycApplication(QtGui.QApplication):
                             self.main_window.video_widget.y(), self.main_window.video_widget.width(),
                             self.main_window.video_widget.height(), True))
 
+        #TODO: Get rid of the timer business IAAP
         self.timer = QtCore.QTimer()
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.force_update)
@@ -225,20 +241,27 @@ class VlycApplication(QtGui.QApplication):
         # Play first file if given on commandline
         if self.args.init_mrl is not None:
             self.logger.info("Opening '%s'"%self.args.init_mrl)
-            self.player.open(self.args.init_mrl)
-            self.play()
+            if YoutubeHandler.watch_regexp.match(str(self.args.init_mrl,"UTF-8")):
+                #we got a youtube url
+                self._yt_sig_init.emit(str(self.args.init_mrl,"utf8"))
+            else:
+                #try to open it
+                self.player.open(self.args.init_mrl)
+                self.play()
             if self.args.fullscreen:
                 self.setFullscreen(True)
             if self.args.quit_after:
                 self.connect(self,QtCore.SIGNAL("ended()"),self.quit)
         self.logger.debug("Entering Main Loop")
         self.exec_()
-        self.logger.debug("Terminating")
+        self.logger.info("Terminating")
 
         #/---------------------------------------
         # Collect threads
         #---------------------------------------/
-        self.youtube_thread.terminate()
+        self.logger.debug("Waiting for Threads to finish...")
+        self.youtube_thread.quit()
+        self.youtube_thread.wait()
 
         #/---------------------------------------
         # Save Settings
@@ -293,8 +316,8 @@ class VlycApplication(QtGui.QApplication):
     def play(self):
         x = self.player.play()
         self.timer.start()
-        self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
-        self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
+        #self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
+        #self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
         if self._yt_is_video:
             self._yt_sig_anns.emit()
         return x
@@ -310,6 +333,11 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.play_button.updateButtonIcons(b_playing)
         if b_playing:
             self.length = self.player.get_length()
+            self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
+            self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
+            if self.fs_controller and self.b_fullscreen:
+                self.fs_controller.sound_widget.libUpdateVolume(self.player.audio_get_volume())
+                self.fs_controller.sound_widget.updateMuteStatus(self.player.audio_get_mute())
         if self.fs_controller:
             self.fs_controller.play_b.updateButtonIcons(b_playing)
 
@@ -343,7 +371,7 @@ class VlycApplication(QtGui.QApplication):
     _yt_sig_anns = QtCore.pyqtSignal()
     def init_yt(self):
         self.youtube = YoutubeHandler()
-        self.youtube_thread.started.connect(lambda: self.youtube.logger.info("YoutubeThread started"))
+        self.youtube_thread.started.connect(lambda: self.youtube.logger.debug("YoutubeThread started"))
         self.youtube_thread.terminated.connect(self.youtube.cleanupSubtitles)
         self._yt_sig_init.connect(self.youtube.initYoutube)
         self._yt_sig_qual.connect(self.youtube.setQuality)
@@ -463,7 +491,6 @@ class VlycApplication(QtGui.QApplication):
 
     def setFullscreenControls(self, b_show):
         if b_show and not self.fs_controller:
-            FullscreenController.getSettings = lambda unused: self.settings
             self.fs_controller = FullscreenController(self.main_window.video_widget)
             self.fs_controller.play_b.clicked.connect(self.toggle_pause)
             self.fs_controller.stop_b.clicked.connect(self.stop)
@@ -474,8 +501,6 @@ class VlycApplication(QtGui.QApplication):
             self.fs_controller.play_b.updateButtonIcons(self.player.is_playing())
             self.connect(self.fs_controller.seeker, QtCore.SIGNAL("sliderDragged(float)"), self.player.set_position)
             self.fs_controller.fullscreen.clicked.connect(lambda: self.setFullscreen(False))
-            self.fs_controller.getSettings = lambda: self.settings
-            del FullscreenController.getSettings
         if self.fs_controller:
             if b_show:
                 self.fs_controller.sound_w.libUpdateVolume(self.player.audio_get_volume())
@@ -490,6 +515,10 @@ class VlycApplication(QtGui.QApplication):
                 self.main_window.seeker.setPosition(self.player.get_position(),None,self.length)
                 self.main_window.time_label.setDisplayPosition((-1.0 if self.length==-1 else 1.0), self.player.get_time(), self.length)
             self.fs_controller.setFullscreen(b_show)
+            if b_show:
+                self.main_window.video_widget.MouseMoved.connect(self.fs_controller.mouseChanged)
+            else:
+                self.main_window.video_widget.MouseMoved.disconnect(self.fs_controller.mouseChanged)
 
     def setFullscreen(self, b_fs):
         if b_fs == self.b_fullscreen: return
@@ -502,3 +531,4 @@ class VlycApplication(QtGui.QApplication):
 def main(argv):
     app = VlycApplication(argv)
     return app.main()
+
