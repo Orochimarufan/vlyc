@@ -38,6 +38,7 @@ from .widgets import VideoWidget
 from .widgets import TimeLabel
 from .widgets import PlayButton
 from .fullscreen import Controller as BaseFullscreenController
+from .settings import Settings
 
 class MainWindow(QtGui.QMainWindow):
     def setupUi(self):
@@ -71,7 +72,7 @@ class MainWindow(QtGui.QMainWindow):
         self.time_layout = QtGui.QHBoxLayout()
         self.time_layout.setObjectName("time_layout")
 
-        self.seeker = SeekSlider(QtCore.Qt.Horizontal, self.root_widget, self.getSettings().value("MainWindow/classic_slider",False))
+        self.seeker = SeekSlider(QtCore.Qt.Horizontal, self.root_widget, Settings().value("MainWindow/classic_slider",False))
         self.seeker.setObjectName("seeker")
         self.time_layout.addWidget(self.seeker)
 
@@ -119,7 +120,7 @@ class MainWindow(QtGui.QMainWindow):
         self.quality_combo.setFocusPolicy(QtCore.Qt.NoFocus)
         self.control_layout.addWidget(self.quality_combo)
 
-        self.sound_widget = SoundWidget(self.root_widget, self.getSettings().value("MainWindow/shiny_sound",True))
+        self.sound_widget = SoundWidget(self.root_widget, Settings().value("MainWindow/shiny_sound",True))
         self.sound_widget.setObjectName("sound_widget")
         self.sound_widget.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
         self.sound_widget.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -179,13 +180,13 @@ class MainWindow(QtGui.QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.__logger = logging.getLogger("vlyc.ui.MainWindow")
         self.setupUi()
-        self.resize(self.getSettings().value("MainWindow/size",self.size()))
-        self.move(self.getSettings().value("MainWindow/position",self.pos()))
+        self.resize(Settings().value("MainWindow/size",self.size()))
+        self.move(Settings().value("MainWindow/position",self.pos()))
 
     def savePosition(self):
         self.__logger.debug("MainWindow: saving position") #@UndefinedVariable
-        self.getSettings().setValue("MainWindow/position",self.pos())
-        self.getSettings().setValue("MainWindow/size",self.size())
+        Settings().setValue("MainWindow/position",self.pos())
+        Settings().setValue("MainWindow/size",self.size())
 
 class FullscreenController(BaseFullscreenController):
     def createUiInput(self):

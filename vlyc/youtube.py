@@ -1,6 +1,6 @@
 """
 /*****************************************************************************
- * vlyc :: youtube.py : Youtube Thread 
+ * vlyc :: youtube.py : Youtube Thread
  ****************************************************************************
  * Copyright (C) 2012 Orochimarufan
  *
@@ -95,7 +95,7 @@ class YoutubeHandler(QtCore.QObject):
         try: #We must not allow any Exceptions or the UI will block on the "Resolving Video" Dialog!
             self.initVideo(video_id)
         except:
-            self.resolveFail.emit(traceback.format_exception(*sys.exc_info()))
+            self.resolveFail.emit("\n".join(traceback.format_exception(*sys.exc_info())))
         #Initialize Subtitles
         try:
             self.initSubtitles(video_id)

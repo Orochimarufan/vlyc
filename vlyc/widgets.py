@@ -30,6 +30,7 @@ from PyQt4 import QtCore,QtGui
 from .util import secstotimestr, AutoEnum
 from .input_slider import SoundSlider
 from . import const
+from .settings import Settings
 
 class ClickableQLabel(QtGui.QLabel):
     def mouseDoubleClickEvent(self, event):
@@ -66,6 +67,8 @@ class VideoWidget(QtGui.QFrame):
 #127     * performance, but causes the video widget to be transparent... */
         #self._stable.setAttribute(QtCore.Qt.WA_PainOnScreen);
         #self._sync()
+        self._stable.installEventFilter(self)
+        self._stable.setMouseTracking(True)
         return self._stable.winId();
     def setSizing(self,i_w,i_h):
         self.resize(i_w,i_h);
@@ -80,10 +83,23 @@ class VideoWidget(QtGui.QFrame):
             self._stable = None;
         self.updateGeometry();
     
-    mM = QtCore.pyqtSignal(int,int)
+    MouseMoved = QtCore.pyqtSignal(int,int)
+    MouseDoubleClick = QtCore.pyqtSignal(QtGui.QMouseEvent)
+    
+    def eventFilter(self,o,e):
+        if o == self._stable:
+            tp = e.type()
+            if tp==QtCore.QEvent.MouseMove:
+                self.MouseMoved.emit(e.x(),e.y())
+                e.accept()
+                return True
+            elif tp==QtCore.QEvent.MouseButtonDblClick:
+                self.MouseDoubleClick.emit(e)
+                return True
+        return False
     
     def mouseMoveEvent(self,e):
-        self.mM.emit(e.x(),e.y())
+        self.MouseMoved.emit(e.x(),e.y())
 
 class TimeLabel(ClickableQLabel):
     Display = AutoEnum("DisplayType", 
@@ -100,7 +116,7 @@ class TimeLabel(ClickableQLabel):
         self.displayType = displayType;
         self.b_remainingTime = False;
         if (displayType & self.Display.Elapsed):
-            self.b_remainingTime = False #self.getSettings().value("MainWindow/ShowRemainingTime",False);
+            self.b_remainingTime = Settings().value("MainWindow/ShowRemainingTime",False);
         if (displayType == self.Display.Elapsed):
             self.setText(" --:-- ");
             self.setToolTip(QtCore.QCoreApplication.translate("TimeLabel","Elapsed time"));
