@@ -99,7 +99,7 @@ class VlycApplication(QtGui.QApplication):
         # Do Version Checks
         #---------------------------------------/
         if not Version.PythonVersion.minVersion(3,2): #For whatever reason he doesnt like Version.xVersion @UndefinedVariable
-            QtGui.QMessageBox.warn(None,"Python Version Alert",
+            QtGui.QMessageBox.warning(None,"Python Version Alert",
                     """The Python Version you are using is not supported by this Application: %s
                     The Consistency of the Software can not be guaranteed.
                     Please consider upgrading to Python v3.2 or higher (http://python.org)"""\
@@ -114,7 +114,7 @@ class VlycApplication(QtGui.QApplication):
             return 1
         self.logger.info("libyo Version: %s"%Version.LibyoVersion.format()) #@UndefinedVariable
         if player.libvlc_hexversion()<0x020000:
-            QtGui.QMessageBox.warn(None,"libvlc Version Alert",
+            QtGui.QMessageBox.warning(None,"libvlc Version Alert",
                     """The libvlc library version you are using is not supported by this Application: %s
                     The software may not be able to run properly.
                     Please consider upgrading to libvlc 2.0.0 or higher (http://videolan.org)"""\
