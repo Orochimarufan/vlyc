@@ -35,6 +35,7 @@ from libyo.youtube import resolve
 from libyo.youtube import subtitles
 from libyo.youtube.resolve import profiles
 from libyo.util.util import sdict_parser
+from libyo.youtube import url as yt_url
 
 class YoutubeHandler(QtCore.QObject):
     """
@@ -43,7 +44,7 @@ class YoutubeHandler(QtCore.QObject):
     #/+++++++++++++++++++++++++++++++++++++++++++
     # Constants
     #+++++++++++++++++++++++++++++++++++++++++++/
-    watch_regexp = re.compile(r"^.+youtube\..{2,3}\/watch\?(.+)$")
+    watch_regexp = yt_url.regexp
     invalid_message= "URL does not seem to be a valid YouTube Video URL:\r\n%s"
     resolve_message= "Could not resolve Video: %s\r\n(Are you sure your Internet connection is Up?)"
     logger = logging.getLogger("vlyc.YoutubeThread")
@@ -84,13 +85,12 @@ class YoutubeHandler(QtCore.QObject):
         self.logger.info("Initializing Video: %s"%url)
         self.resolveBegn.emit()
         #Parse the Watch URL
-        match = self.watch_regexp.match(url)
-        if not match:
+        try:
+            video_id = yt_url.getIdFromUrl(url)
+        except (ValueError,KeyError):
+            self.logger.debug("url error",exc_info=True)
             self.resolveFail.emit(self.invalid_message%url)
-        params = sdict_parser(match.group(1))
-        if "v" not in params:
-            self.resolveFail.emit(self.invalid_message%url)
-        video_id = params["v"]
+            return
         #Initialize Video
         try: #We must not allow any Exceptions or the UI will block on the "Resolving Video" Dialog!
             self.initVideo(video_id)

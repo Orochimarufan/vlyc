@@ -34,8 +34,8 @@ sip.setapi("QString",2)
 from PyQt4 import QtCore
 from PyQt4 import QtGui
 
+import libyo
 from libyo.argparse import LibyoArgumentParser
-from libyo.version import Version
 
 from vlc import player
 from vlc import util
@@ -102,21 +102,21 @@ class VlycApplication(QtGui.QApplication):
         #/---------------------------------------
         # Do Version Checks
         #---------------------------------------/
-        if not Version.PythonVersion.minVersion(3,2): #For whatever reason he doesnt like Version.xVersion @UndefinedVariable
+        if (3,2) > sys.version_info:
             QtGui.QMessageBox.warning(None,"Python Version Alert",
                     """The Python Version you are using is not supported by this Application: %s
                     The Consistency of the Software can not be guaranteed.
                     Please consider upgrading to Python v3.2 or higher (http://python.org)"""\
-                                   %Version.PythonVersion.format()) #@UndefinedVariable
-        self.logger.info("Python Version: %s"%Version.PythonVersion.format()) #@UndefinedVariable
-        if not Version.LibyoVersion.minVersion(0,9,10,"b"): #@UndefinedVariable
+                                   %sys.version) #@UndefinedVariable
+        #self.logger.info("Python Version: %s"%sys.version)
+        if (0,9,13) > libyo.version_info:
             QtGui.QMessageBox.critical(None,"LibYo Version Alert",
                     """The libyo library version you are using is not supported by this Application: %s
                     The Software cannot run properly.
-                    Please upgrade to libyo v0.9.10b or higher (http://github.com/Orochimarufan/libyo)"""\
-                                    %Version.LibyoVersion.format()) #@UndefinedVariable
+                    Please upgrade to libyo v0.9.13 or higher (http://github.com/Orochimarufan/libyo)"""\
+                                    %libyo.version)
             return 1
-        self.logger.info("libyo Version: %s"%Version.LibyoVersion.format()) #@UndefinedVariable
+        #self.logger.info("libyo Version: %s"%libyo.version)
         if player.libvlc_hexversion()<0x020000:
             QtGui.QMessageBox.warning(None,"libvlc Version Alert",
                     """The libvlc library version you are using is not supported by this Application: %s
@@ -124,7 +124,7 @@ class VlycApplication(QtGui.QApplication):
                     Please consider upgrading to libvlc 2.0.0 or higher (http://videolan.org)"""\
                                     %Version("libvlc",player.libvlc_version()).format())
         self.logger.info("libvlc Version: %s"%player.libvlc_versionstring())
-        
+
         self.logger.info("VideoLan Youtube Client %s '%s'"%(".".join(map(str,VERSION)),CODENAME))
 
         #/---------------------------------------
@@ -197,10 +197,12 @@ class VlycApplication(QtGui.QApplication):
         self.connect(self.main_window.quality_combo, QtCore.SIGNAL("currentIndexChanged(const QString&)"), self.ChangeQuality)
         self.connect(self.main_window.subtitle_combo, QtCore.SIGNAL("currentIndexChanged(int)"), self.ChangeSubTrack)
         self.main_window.fullscreen_button.clicked.connect(self.toggleFullscreen)
-        
+
         #/---------------------------------------
         # Shortcuts
         #---------------------------------------/
+        self.shortcut_spc = QtGui.QShortcut(" ",self.main_window.video_widget)
+        self.shortcut_spc.activated.connect(self.toggle_pause)
         self.shortcut_esc = QtGui.QShortcut("Esc",self.main_window.video_widget)
         self.shortcut_esc.activated.connect(lambda: self.setFullscreen(False))
         self.shortcut_f11 = QtGui.QShortcut("F11",self.main_window)
@@ -243,10 +245,11 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.show()
         # Play first file if given on commandline
         if self.args.init_mrl is not None:
-            self.logger.info("Opening '%s'"%self.args.init_mrl)
-            if YoutubeHandler.watch_regexp.match(str(self.args.init_mrl,"UTF-8")):
+            init_mrl = str(self.args.init_mrl, "utf8")
+            self.logger.info("Opening '%s'"%init_mrl)
+            if YoutubeHandler.watch_regexp.match(init_mrl):
                 #we got a youtube url
-                self._yt_sig_init.emit(str(self.args.init_mrl,"utf8"))
+                self._yt_sig_init.emit(init_mrl)
             else:
                 #try to open it
                 self.player.open(self.args.init_mrl)
@@ -272,7 +275,7 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.savePosition()
         if self.fs_controller: self.fs_controller.savePosition()
         self.settings.sync()
-		
+
         return 0
 
     #/-------------------------------------------
@@ -340,8 +343,8 @@ class VlycApplication(QtGui.QApplication):
             self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
             self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
             if self.fs_controller and self.b_fullscreen:
-                self.fs_controller.sound_widget.libUpdateVolume(self.player.audio_get_volume())
-                self.fs_controller.sound_widget.updateMuteStatus(self.player.audio_get_mute())
+                self.fs_controller.sound_w.libUpdateVolume(self.player.audio_get_volume())
+                self.fs_controller.sound_w.updateMuteStatus(self.player.audio_get_mute())
         if self.fs_controller:
             self.fs_controller.play_b.updateButtonIcons(b_playing)
 
@@ -360,7 +363,7 @@ class VlycApplication(QtGui.QApplication):
     def reset_ui(self):
         self.main_window.time_label.setDisplayPosition(-1.0, 0, self.length)
         self.main_window.seeker.setPosition(-1.0, None, self.length)
-    
+
     def show_about(self):
         if not self.about_dlg:
             self.about_dlg = AboutDialog(self.main_window)

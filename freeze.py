@@ -40,7 +40,7 @@ print(sys.platform.upper())
 #--------------------------------------------------
 print("Determining Version Number...",end=" "*12)
 
-from libyo.version import Version #@UnresolvedImport
+import libyo
 
 pipe = Popen(["git","rev-list","--all"],stdout=PIPE)
 pipe.wait()
@@ -51,16 +51,16 @@ clean = call(["git","diff-files","--quiet"])==0 and \
 
 if sys.platform=="win32":
     if clean:
-        version = Version.LibyoVersion.format("{0}.{1}.{2}{patch_i:02}.{{0}}").format(rev)
+        version = "{1}.{2}.{3}{4:02}.{0}".format(rev, *libyo.version_info)
     else:
-        version = Version.LibyoVersion.format("{0}.{1}.{2}{patch_i:02}.{{0}}").format(%int(rev)+1) #all we CAN do with stupid restrictions on windows version numbers
+        version = "{1}.{2}.{3}{4:02}.{0}".format(rev, *libyo.version_info) #do something to indicate unclean buildi
 else:
     pipe = Popen(["git","rev-list","HEAD","-n1","--abbrev-commit"],stdout=PIPE)
     pipe.wait()
     git = pipe.stdout.read().decode("utf8").strip()
-    version = Version.LibyoVersion.format("{0}.{1}.{2}.{patch_i}-{{0}}git{{1}}").format(rev,git)
+    version = "{2}.{3}.{4}.{5}-{0}git{1}".format(rev, git, *libyo.version_info)
     if not clean:
-        version+="-unclean"
+        version+="+M"
 
 print(version)
 with open("VERSION","w") as v:
@@ -145,7 +145,7 @@ if sys.hexversion>0x3000000:
     addx(package,"libyo.compat.python3")
 else:
     addx(package,"libyo.compat.python2")
-    
+
 options = {"build_exe": {
             "includes": include,
             "excludes": exclude,

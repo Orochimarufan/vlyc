@@ -4,9 +4,11 @@ from __future__ import unicode_literals,print_function,absolute_import
 
 bytecount = 64*1024
 _xspf_relpath=True
-__VERSION__=(2,0,1,"a")
-__LIBYO_R__=(0,9,10,"a")
+version = "2.0.2"
+need_libyo = (0,9,13)
 
+import sys
+import logging
 
 import libyo
 from libyo.youtube.resolve import resolve3
@@ -18,7 +20,7 @@ from libyo.youtube.exception import YouTubeResolveError
 from libyo.interface.progress.simple import SimpleProgress2
 from libyo.urllib.download import download as downloadFile
 from libyo.configparser import RawPcsxConfigParser, PcsxConfigParser
-from libyo.version import Version
+
 import os
 import json
 import string
@@ -32,10 +34,12 @@ valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
 tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
 
 def welcome():
-    print("YouFeed v{1}.{2}.{3}{4} (libyo v{0})".format(libyo.LIBYO_VERSION,*__VERSION__))
+    print("YouFeed {1} (libyo {0})".format(libyo.version,version))
     print("(c) 2011-2012 Orochimarufan")
-    Version.LibyoVersion.fancyRequireVersion(*__LIBYO_R__)
-    Version.PythonVersion.fancyRequireVersion(2,6)
+    if need_libyo > libyo.version_info:
+        raise SystemError("libyo > {0} required.".format(".".join(map(str,need_libyo))))
+    if (2,6) > sys.version_info:
+        raise SystemError("python > 2.6 required.")
 
 def main(ARGV):
     welcome()
@@ -351,5 +355,4 @@ def _create_xspf (meta,local,downloads):
     return document
 
 if __name__=="__main__":
-    import sys
     main(sys.argv)
