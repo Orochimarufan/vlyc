@@ -1,23 +1,33 @@
 #!/usr/bin/python3
-#-@PydevCodeAnalysisIgnore
 from __future__ import unicode_literals,print_function,absolute_import
 
-bytecount = 64*1024
+# Settings
+bytecount = 64*4096
 _xspf_relpath=True
-version = "2.0.2"
+# Version
+version = "2.0.4"
 need_libyo = (0,9,13)
+# Filenames
+allow_spaces    = False
+allow_invalid   = False
+valid_filename  = "-_.{ascii_letters}{digits}"
+invalid_replace = ""
+space_replace   = "_"
 
+# Imports
 import sys
 import logging
 
 import libyo
 from libyo.youtube.resolve import resolve3
 from libyo.youtube.Playlist import Playlist
+from libyo.youtube.url import getIdFromUrl
 from libyo.youtube.User import User
 from libyo.extern import argparse
-from libyo.youtube.resolve.profiles import descriptions as fmtdesc, file_extensions as fmtext
+from libyo.youtube.resolve.profiles import descriptions as fmtdesc, file_extensions as fmtext, profiles
 from libyo.youtube.exception import YouTubeResolveError
 from libyo.interface.progress.simple import SimpleProgress2
+from libyo.interface.progress.file import SimpleFileProgress
 from libyo.urllib.download import download as downloadFile
 from libyo.configparser import RawPcsxConfigParser, PcsxConfigParser
 
@@ -26,12 +36,19 @@ import json
 import string
 import platform
 
+# Platform
 if platform.system()=="cli": #IronPython OS Detection
     WINSX = platform.win32_ver()[0]!=""
 else:
-    WINSX = platform.system()=="Windows";
-valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__);
-tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename);
+    WINSX = platform.system()=="Windows"
+
+# Filename Gen
+valid_filename = valid_filename.format(**string.__dict__)
+_tfn_spaces = (lambda s: s) if allow_spaces \
+else (lambda s: s.replace(" ","_"))
+_tfn_validc = (lambda c: c) if allow_invalid \
+else (lambda c: c if c in valid_filename else invalid_replace)
+tofilename = lambda s: "".join([_tfn_validc(c) for c in _tfn_spaces(s)])
 
 def welcome():
     print("YouFeed {1} (libyo {0})".format(libyo.version,version))
@@ -45,16 +62,17 @@ def main(ARGV):
     welcome()
     parser=argparse.ArgumentParser(prog=ARGV[0],description="A nifty piece of Software that lets you download YouTube Playlists.")
     parser.add_argument("-d","--dummy",action="store_true",dest="dummy",default=False,help="Don't download anything.")
-    subparsers=parser.add_subparsers(default="all",title="subcommands",description="Use '%(prog)s (command) -h' to get further help. By Default, the 'all' command is run.")
-    parser_def=subparsers.add_parser("all",description="Do all Jobs defined in the jobs/ directory.")
-    parser_def.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
-    parser_def.set_defaults(command="",max=-1,offset=0)
+    parser.add_argument("-v","--verbose",action="store_true",dest="verbose",default=False,help="Verbose Output")
+    subparsers=parser.add_subparsers(default="all",title="subcommands",description="Use '%(prog)s (command) -h' to get further help. By Default, the 'all' command is run.",dest="command")
+    parser_all=subparsers.add_parser("all",description="Do all Jobs defined in the jobs/ directory.")
+    parser_all.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
+    parser_all.add_argument("-pa","--playlist-abs",action="store_false",dest="xspf_rel",default=_xspf_relpath)
+    parser_all.set_defaults(max=-1,offset=0)
     parser_job=subparsers.add_parser("job",aliases=["jobs"],description="Do one job defined in the jobs/ directory.")
     parser_job.add_argument("job",metavar="JobFileName",help="The Filename of the job definition file to use.",nargs="+")
     parser_job.add_argument("-n","--max",metavar="N",dest="max",type=int,default=-1,help="Max Number of Videos to download")
-    parser_job.add_argument("-o","--offset",metavar="N",dest="offset",type=int,default=0,help="Skip N Videos")
+    parser_job.add_argument("-o","--offset",metavar="N",dest="offset",type=int,default=-1,help="Skip N Videos")
     parser_job.add_argument("-p","--playlist",action="store_true",dest="pl",default=False,help="Only update Job Playlists.")
-    parser_job.set_defaults(command="job")
     parser_run=subparsers.add_parser("run",description="Do a custom job.")
     parser_run.add_argument("job_type",help="The Job Type. [favorites,playlist]")
     parser_run.add_argument("job_argument",help="[playlist] The YouTube Playlist ID; [favorites] The Youtube User ID")
@@ -62,13 +80,18 @@ def main(ARGV):
     parser_run.add_argument("-q","--quality",metavar="QA",dest="quality",default=720,type=int,help="The Quality level (360p -> 360; 720p -> 720)")
     parser_run.add_argument("-n","--max",metavar="N",dest="max",default=-1,type=int,help="Max Number of Videos to download")
     parser_run.add_argument("-o","--offset",metavar="N",dest="offset",default=0,type=int,help="Skip N Videos")
-    parser_run.set_defaults(command="run")
+    parser_sin=subparsers.add_parser("sin",aliases=["single"],description="Download a single video")
+    parser_sin.add_argument("video_id",help="Video ID/URL",nargs="+")
+    parser_sin.add_argument("target_dir",help="Folder to store the Files")
+    parser_sin.add_argument("-u",help="Video IDs are Youtube URLs",action="store_true",default=False)
+    parser_sin.add_argument("-q",default=720,type=int,help="Quality: progressive height, integer")
+    parser_sin.add_argument("-a",help="Profile",default="mixed-avc")
     args=parser.parse_args(ARGV[1:])
     if not os.path.exists("pl"):
         os.makedirs("pl")
-    if "command" not in args or args.command=="":
+    if "command" not in args or args.command=="all":
         return _mode_joblist(args)
-    elif args.command=="job":
+    elif args.command in ("job","jobs"):
         paths = []
         for pt in args.job:
             if not os.path.exists(pt):
@@ -88,6 +111,8 @@ def main(ARGV):
         return _mode_job(args,paths)
     elif args.command=="run":
         return _mode_run(args)
+    elif args.command in ("sin","single"):
+        return _mode_sin(args)
 
 def _mode_joblist(args):
     joblist=[]
@@ -138,6 +163,22 @@ def _mode_run(args):
         _xspf_job(args,job)
     print("[ MAIN] Done. Farewell!")
 
+class DummyParser(dict):
+    def getnosect(self,k,defa=None):
+        return self.get(k,defa)
+
+def _mode_sin(args):
+    q = _job_quality(DummyParser({"resolution":str(args.q),"profile":args.a}))
+    m = {"items":[],"local":[],"local_id":{},"downloads":{},"local_title":{}}
+    if not os.path.exists(args.target_dir):
+        os.makedirs(os.path.abspath(args.target_dir))
+    for video_id in args.video_id:
+        vid = video_id if not args.u else id_from_url(video_id)
+        vi  = resolve3(vid)
+        v = {"id":vid, "title": vi.title}
+        _download(args,m,args.target_dir,q,v)
+
+
 def _xspf_job(args,job):
     xspf_file       = job.getnosect("createpl")
 
@@ -165,39 +206,58 @@ def _xspf_job(args,job):
     except ValueError:
         xspf_file   += ".xspf"
 
+    relative = os.path.dirname(xspf_file) if (args.xspf_rel and not xspf_file.startswith("/")) else False
+
     print("[ JOB ] Creating Local Playlist: '{0}'".format(xspf_file))
-    xspf_object     = _create_xspf(meta["meta"],meta["local"],meta["downloads"])
+    xspf_object     = _create_xspf(meta["meta"],meta["local"],meta["downloads"],relative)
 
     with open(xspf_file,"w") as fp:
         xspf_object.writexml(fp, "", "", "", encoding="UTF-8")
 
 def _download(args,meta,target,fmt_list,video_item):
-    video_title = video_item["title"]
-    video_id    = video_item["id"]
-    if video_id == "":
-        print("[VIDEO] Found Deleted Video in Playlist. please clean up!")
-        return
-    print("[VIDEO] Found new Video: \"{0}\" (ID='{1}')".format(video_title,video_id))
-    print("[VIDEO] Preparing to Download...",end="\r")
     try:
-        url,fmt     = _recursive_resolve(video_id,fmt_list)
-    except YouTubeResolveError:
+        video_title = video_item["title"]
+        video_id    = video_item["id"]
+        if video_id == "":
+            print("[VIDEO] Found Deleted Video in Playlist. please clean up!")
+            return
+        print("[VIDEO] Found new Video: \"{0}\" (ID='{1}')".format(video_title,video_id))
+        print("[VIDEO] Preparing to Download...",end="\r")
+        try:
+            url,fmt     = _recursive_resolve(video_id,fmt_list)
+        except YouTubeResolveError:
             print("[VIDEO] Video could not be resolved.")
             return
-    print("[VIDEO] Downloading with Quality level {0}".format(fmtdesc[fmt]))
+        print("[VIDEO] Downloading with Quality level {0}".format(fmtdesc[fmt]))
+    except Exception:
+        import traceback
+        print("-"*40)
+        print("Exception while Resolving Video:")
+        if args.verbose:
+            traceback.print_exc(limit=None,chain=True)
+        else:
+            print("".join(traceback.format_exception_only(*sys.exc_info()[:2])),end="")
+        print("-"*40)
+        return meta
     if not args.dummy:
         video       = resolve3(video_id)
         filename    = tofilename(video.title)+"."+fmtext[fmt]
         path        = target
         fullpath    = os.path.join(path,filename)
-        progress    = SimpleProgress2()
-        progress.name = video.title
-        progress.task = "Downloading. (\x11)"
-        if len(progress.name)>20:
-            print(progress.name)
-            progress.name="Downloading"
-            progress.task="\x11"
-        downloadFile(url,fullpath,progress,2,bytecount)
+        progress = SimpleFileProgress("{position}/{total} {bar} {percent} {speed} ETA: {eta}")
+        retry = 0
+        while retry<5:
+            try:
+                downloadFile(url,fullpath,progress,2,bytecount)
+            except Exception:
+                import traceback
+                print("[ERROR] " + "".join(traceback.format_exception_only(*sys.exc_info()[:2])))
+                retry+=1
+            else:
+                break
+        else:
+            print("[ERROR] Cannot Download. Continuing")
+            return meta
         meta["items"].append(video_id)
         meta["local"].append(video_item)
         idx         = meta["local"].index(video_item)
@@ -244,9 +304,11 @@ def _playlist_job(args,job):
     print("[ JOB ] Synchronizing Data. Please Wait...")
     playlist            = pl_factory.advanced()
     meta["cache"]       = playlist
-    items = [i for i in playlist["data"]["items"] if i["video"]["id"] not in meta["items"]]
-    items = (items[args.offset:] if args.offset>0 else items)
-    items = (items[:args.max] if args.max>0 else items)
+    items = playlist["data"]["items"]
+    start = (args.offset if args.offset>-1 else job.getnosect("start",0))
+    stop  = (start+args.max-1 if args.max>-1 else job.getnosect("stop",-1))
+    items = (items[start:stop] if stop>-1 else items[start:])
+    items = [i for i in items if i["video"]["id"] not in meta["items"]]
     for item in items:
         video_item      = item["video"]
         _download(args,meta,playlist_target,fmt_list,video_item);
@@ -298,9 +360,9 @@ def _job_quality(job):
     if profile not in profiles:
         print("[ERROR] The Profile \"{0}\" is unknown".format(profile))
         return False
-    if job.getnosect("resolution",None):
+    if job.getnosect("resolution",job.getnosect("quality",None)):
         try:
-            resolution = int(job.getnosect("resolution").lower().rstrip("p"))
+            resolution = int(job.getnosect("resolution",job.getnosect("quality")).lower().rstrip("p"))
         except ValueError:
             print("[ERROR] Resolution has to be in this format: \"%i\" or \"%ip\" ('360' or '360p')")
             return False
@@ -327,7 +389,7 @@ def _dom_textElement(tag,text):
     return e
 def _dom_addTextNode(node,tag,text):
     node.appendChild(_dom_textElement(tag,text))
-def _create_xspf (meta,local,downloads):
+def _create_xspf (meta,local,downloads,rel):
     from xml.dom import minidom
     document = minidom.getDOMImplementation().createDocument(None,"playlist",None)
     document.firstChild.setAttribute("xmlns","http://xspf.org/ns/0/")
@@ -339,8 +401,8 @@ def _create_xspf (meta,local,downloads):
     for i in local:
         vid = i["id"]
         track = minidom.Element("track")
-        if _xspf_relpath:
-            path = os.path.relpath(downloads[vid]["path"])
+        if rel:
+            path = os.path.relpath(downloads[vid]["path"],rel)
         else:
             path = "file://"+downloads[vid]["path"]
         _dom_addTextNode(track,"location",   path)

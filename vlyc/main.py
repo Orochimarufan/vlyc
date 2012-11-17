@@ -135,7 +135,7 @@ class VlycApplication(QtGui.QApplication):
         const.FSC_HEIGHT = self.settings.value("FullScreen/Height", const.FSC_HEIGHT)
         const.FSC_WIDTH = self.settings.value("FullScreen/Width", const.FSC_WIDTH)
         const.VOLUME_STEP = self.settings.value("SoundWidget/Step", const.VOLUME_STEP)
-        YoutubeHandler.pref_q_lookup = map(int,self.settings["Youtube":"PreferredQualities":[22,18,5]])
+        YoutubeHandler.pref_q_lookup = list(map(int,self.settings["Youtube":"PreferredQualities":[22,18,5]]))
 
         #/---------------------------------------
         # Initialize Player and GUI

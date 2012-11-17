@@ -2,3 +2,10 @@
 __pycache__
 /pl/*
 /playlists/*
+/jobs/*
+/libyo*
+/.metadata/*
+*~
+*.flv
+*.mp4
+*.xspf

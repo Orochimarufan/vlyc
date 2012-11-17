@@ -25,7 +25,7 @@
 
 from __future__ import absolute_import,print_function,unicode_literals
 
-version = "2.0.1"
+version = "2.0.4"
 need_libyo = (0,9,13)
 
 import sys
@@ -45,10 +45,12 @@ from libyo.compat import uni
 from libyo.youtube.resolve import profiles, resolve3
 from libyo.youtube.url import getIdFromUrl
 from libyo.youtube.exception import YouTubeException, YouTubeResolveError
+from libyo.youtube.subtitles import getTracks as getSubTracks
 from libyo.util.choice import cichoice, qchoice, switchchoice
 from libyo.util.util import listreplace_s as lreplace
 from libyo.util.pretty import fillA, fillP
 from libyo.argparse import ArgumentParser, RawTextHelpFormatter, LibyoArgumentParser
+input = compat.getModule("util").input; #@ReservedAssignment
 
 import tempfile
 import shlex
@@ -66,16 +68,48 @@ except ImportError:
 else:
     HAS_READLINE=True
 
-valid_filename="-_.{ascii_letters}{digits}".format(**string.__dict__)
-input = compat.getModule("util").input #@ReservedAssignment
+# Filename Rules
+allow_spaces    = False
+allow_invalid   = False
+valid_filename  = "-_.{ascii_letters}{digits}".format(**string.__dict__)
+invalid_replace = ""
+space_replace   = "_"
 
-tofilename = lambda s: "".join(c for c in s.replace(" ","_") if c in valid_filename)
+# Filename Generation
+_tfn_spaces = (lambda s: s) if allow_spaces \
+else (lambda s: s.replace(" ","_"))
+_tfn_validc = (lambda c: c) if allow_invalid \
+else (lambda c: c if c in valid_filename else invalid_replace)
+tofilename = lambda s: "".join([_tfn_validc(c) for c in _tfn_spaces(s)])
+
 firstkey = lambda i: next(iter(i))
 
+# Platform Code
 if platform.system()=="cli": #IronPython OS Detection
     WINSX = platform.win32_ver()[0]!=""
 else:
     WINSX = platform.system()=="Windows"
+
+# Tempfile code
+class TempFile(io.TextIOWrapper):
+    def __init__(self,prefix,suffix):
+        cargs = { "prefix":prefix, "suffix":suffix, "mode":"w+b" }
+        if WINSX:
+            cargs["delete"]=False
+        self.tempfile = tempfile.NamedTemporaryFile(**cargs)
+        if (3,) > sys.version_info:
+            self.tempfile.readable=self.tempfile.writable=self.tempfile.seekable=lambda: True
+        super(TempFile,self).__init__(self.tempfile)
+    def unlock(self):
+        self.flush()
+        if WINSX:
+            self.close()
+            self.tempfile.close()
+    def dispose(self):
+        if not WINSX:
+            self.close()
+            self.tempfile.close()
+        self.tempfile.unlink() #get rid of it, close() should do the work on *NIX systems, but bsts.
 
 def welcome():
     print("AntiFlashPlayer for YouTube {0} (libyo {1})".format(version, libyo.version))
@@ -101,9 +135,10 @@ def main(ARGC,ARGV):
     parser.add_argument("-a","--avc", metavar="PRF", dest="avc", action="store", choices=cichoice(profiles.profiles.keys()), default=firstkey(profiles.profiles), help="What Profile to use [Default: %(default)s]\nUse '%(prog)s -i profiles' to show avaliable choices")
     parser.add_argument("-f","--force",dest="force",action="store_true",default=False,help="Force Quality Level (don't jump down)")
     parser.add_argument("-y","--fmt",dest="fmt",metavar="FMT",action="store",type=int,choices=profiles.descriptions.keys(),help="Specify FMT Level. (For Advanced Users)\nUse '%(prog)s -i fmt' to show known Values")
-    parser.add_argument("-c","--cmd", metavar="CMD", dest="command", default="vlc %u vlc://quit", action="store", help="Media PLayer Command. use \x25\x25u for url") #use %% to get around the usage of % formatting in argparse
+    parser.add_argument("-c","--cmd", metavar="CMD", dest="command", default="vlc %u vlc://quit --sub-file=%s", action="store", help="Media PLayer Command. use \x25\x25u for url"); #use %% to get around the usage of % formatting in argparse
     parser.add_argument("-n","--not-quiet",dest="quiet",action="store_false",default=True,help="Show Media Player Output")
     parser.add_argument("-x","--xspf",dest="xspf",action="store_true",default=False,help="Don't Play the URL directly, but create a XSPF Playlist and play that. (With Title Information etc.)")
+    parser.add_argument("-s","--sub",dest="sub",action="store_true",default=False,help="Enable Subtitles (use %%s in the cmd for subtitlefile)")
     parser.add_argument("-i","--internal",dest="int",action="store_true",default=False,help="Treat VideoID as AFP internal command\nUse '%(prog)s -i help' for more Informations.")
     parser.add_argument("-v","--verbose",dest="verbose",action="store_true",default=False,help="Output more Details")
     #parser.add_argument("-s","--shell",dest="shell",action="store_true",default=False,help="Run internal Shell")
@@ -187,6 +222,22 @@ def process(args):
     else:
         print("Found a Video URL: {0}".format(profiles.descriptions[fmt]))
 
+    #Subtitles
+    subtitle_file=""
+    if args.sub:
+        print("Looking for Subtitles",end="\r")
+        tracks = getSubTracks(args.id)
+        if len(tracks)<1:
+            print("No Subtitles Found!  ")
+        else:
+            track = tracks[0]
+            print("Enabling Subtitles: "+track.lang_original)
+            srtfile = TempFile("afpSubtitle_",".srt")
+            srtfile.write(track.getSRT())
+            srtfile.unlock()
+            subtitle_file = srtfile.name
+
+    #XSPF File
     if args.xspf:
         from libyo.xspf.simple import Playlist,Track
         xspf = Playlist(video_info.title)
@@ -194,30 +245,22 @@ def process(args):
         xspf[0].annotation = video_info.description
         xspf[0].image = "http://s.ytimg.com/vi/{0}/default.jpg".format(video_info.video_id)
         xspf[0].info = "http://www.youtube.com/watch?v={0}".format(video_info.video_id)
-        if not WINSX:
-            temp = tempfile.NamedTemporaryFile("w+b",suffix=".xspf",prefix="afp_")
-        else:
-            temp = tempfile.NamedTemporaryFile("w+b",suffix=".xspf",prefix="afp-temp_",delete=False)
-        temp.readable=temp.writable=temp.seekable=lambda: True #for some reason temporary files dont have those
-        temp_file = io.TextIOWrapper(temp,"UTF-8")
-        xspf.write(temp_file)
+        temp = TempFile("afp_",".xspf")
+        xspf.write(temp)
         fn=temp.name
         if args.verbose:
             print("XSPF Filename: "+fn)
-        if not WINSX:
-            temp.file.flush()
-        else:
-            temp.close()
+        temp.unlock()
     else:
         fn=url
     argv = map(uni.u,shlex.split(uni.nativestring(args.command)))
-    for pair in [("%u",fn),\
-                 ("%n",video_info.title),\
-                 #("%a",video_info.uploader),\
-                 ("%e",profiles.file_extensions[fmt]),\
-                 ("\0",""),\
-                 ("%f","{0}.{1}".format(tofilename(video_info.title),profiles.file_extensions[fmt]))\
-                ]:
+    for pair in [("\0",""),
+                ("%u",fn),
+                ("%s",subtitle_file),
+                ("%n",video_info.title),
+                #("%a",video_info.uploader),
+                ("%e",profiles.file_extensions[fmt]),
+                ("%f","{0}.{1}".format(tofilename(video_info.title),profiles.file_extensions[fmt]))]:
         argv = lreplace(argv,*pair)
     if args.quiet:
         out_fp=open(os.devnull,"w")
@@ -227,10 +270,7 @@ def process(args):
         print()
     subprocess.call(argv,stdout=out_fp,stderr=out_fp)
     if args.xspf:
-        if not WINSX:
-            temp.close()
-        else:
-            temp.unlink()
+        temp.dispose()
     return 0
 
 def afp_shell(args):
@@ -238,7 +278,7 @@ def afp_shell(args):
     running = True
     parser = LibyoArgumentParser(prog="AFP Shell",may_exit=False,autoprint_usage=False,error_handle=sys.stdout)
     parser.add_argument("id",help="VideoID / URL / literals '+exit', '+pass', '+print'", metavar="OPERATION")
-    parser.add_argument("-s","--switches",dest="switches",help="Set enabled switches (u,x,f,n,v)",choices=switchchoice(["u","x","f","n","v"]),metavar="SW")
+    parser.add_argument("-s","--switches",dest="switches",help="Set enabled switches (u,x,f,n,v,s)",choices=switchchoice(["u","x","f","n","v","s"]),metavar="SW")
     parser.add_argument("-a","--avc",dest="avc",help="Set Profile",choices=cichoice(profiles.profiles.keys()),metavar="PROFILE")
     parser.add_argument("-q","--quality",dest="quality",help="Set Quality Level",choices=qchoice.new(1080,720,480,360,240))
     parser.add_argument("-c","--cmd",dest="command",help="set command")
@@ -247,7 +287,7 @@ def afp_shell(args):
         readline.parse_and_bind("\eB: next-history")
     else:
         print("WARNING: No Readline extension found. Readline functionality will NOT be available. If you're on Windows you might want to consider PyReadline.")
-    sw = my_args.switches = ("u" if args.extract_url else "")+("x" if args.xspf else "")+("f" if args.force else"")+("n" if not args.quiet else "")+("v" if args.verbose else "")
+    sw = my_args.switches = ("u" if args.extract_url else "")+("x" if args.xspf else "")+("f" if args.force else"")+("n" if not args.quiet else "")+("v" if args.verbose else "")+("s" if args.sub else "")
     while running:
         line = input("{0}> ".format(args.prog))
         try:
@@ -261,6 +301,7 @@ def afp_shell(args):
             my_args.force = "f" in my_args.switches
             my_args.quiet = "n" not in my_args.switches
             my_args.verbose = "v" in my_args.switches
+            my_args.sub = "s" in my_args.switches
             sw = my_args.switches
         if my_args.id =="+pass":
             continue
