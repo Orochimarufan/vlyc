@@ -130,7 +130,7 @@ class YoutubeHandler(QtCore.QObject):
         #Determine Initial Quality
         self.logger.debug("Determining fitting Quality Level")
         for f in self.pref_q_lookup:
-            if f in video_info.urlmap:
+            if f in self.qa_map.values():
                 fmt = f
                 break;
         else:

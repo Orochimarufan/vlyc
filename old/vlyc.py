@@ -6,7 +6,7 @@ Created on 10.06.2012
 
 from __future__ import absolute_import,division,print_function,unicode_literals
 
-from libyo.version import Version
+import libyo
 from libyo.compat.uni import b #@UnresolvedImport
 from libyo.youtube import resolve#,subtitles
 from libyo.youtube.resolve import profiles,AbstractBackend
@@ -19,8 +19,9 @@ import sys,re
 from vlc import libvlc
 from collections import OrderedDict
 import logging
+import sys
 
-if Version.PythonVersion.minVersion(3): #@UndefinedVariable
+if (3,)<=sys.version_info:
     vlcstring = b
 else:
     vlcstring = unicode #@UndefinedVariable
@@ -56,13 +57,10 @@ class Application(QtGui.QApplication):
     # Main
     def main(self):
         # Check Versions
-        self.logger.info("Running Python "+Version.PythonVersion.format()) #@UndefinedVariable
-        if not Version.PythonVersion.minVersion(3,2): #@UndefinedVariable
-            QtGui.QMessageBox.critical(None,"Unsupported Python Version","Your Python Version is not supported: {0}\r\nThis Application may or may not work.\r\nYou are advised to upgrade to Python 3.2+".format(Version.PythonVersion.format()),"Dismiss") #@UndefinedVariable
-        self.logger.info("Running libyo "+Version.LibyoVersion.format()) #@UndefinedVariable
-        if not Version.LibyoVersion.minVersion(0,9,10,"b"): #@UndefinedVariable
-            QtGui.QMessageBox.critical(None,"Unsupported libyo Version","The libyo version you are using is not supported by this software: {0}\r\nPlease upgrade to at least libyo 0.9.11".format(Version.LibyoVersion.format()),"Quit") #@UndefinedVariable
-            return 1
+        self.logger.info("Running Python "+sys.version)
+        if (3,2) > sys.version_info:
+            QtGui.QMessageBox.critical(None,"Unsupported Python Version","Your Python Version is not supported: {0}\r\nThis Application may or may not work.\r\nYou are advised to upgrade to Python 3.2+".format(sys.version),"Dismiss")
+        self.logger.info("Running libyo "+libyo.LIBYO_VERSION)
         self.logger.info("Running libvlc %s"%libvlc.libvlc_get_version())
 
         # Setup UI
@@ -377,7 +375,7 @@ class Application(QtGui.QApplication):
         self.player_play()
 
 if __name__=="__main__":
-    if Version.PythonVersion.minVersion(3,2): #@UndefinedVariable
+    if (3,)<=sys.version_info:
         logging.basicConfig(level=logging.DEBUG,format="[{msecs:09.3f}] {name:12} {levelname:5}: {msg}",style="{")
     else:
         logging.basicConfig(level=logging.DEBUG,format="[%(msecs)09.3f] %(name)-12s %(levelname)-5s: %(msg)s")

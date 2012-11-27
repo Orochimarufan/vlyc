@@ -251,7 +251,8 @@ def _download(args,meta,target,fmt_list,video_item):
                 downloadFile(url,fullpath,progress,2,bytecount)
             except Exception:
                 import traceback
-                print("[ERROR] " + "".join(traceback.format_exception_only(*sys.exc_info()[:2])))
+                traceback.print_exception(*sys.exc_info())
+                #print("[ERROR] " + "".join(traceback.format_exception_only(*sys.exc_info()[:2])))
                 retry+=1
             else:
                 break
