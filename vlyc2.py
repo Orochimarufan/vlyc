@@ -28,6 +28,6 @@ import sys
 import logging
 from vlyc.main import main
 
-if __name__=="__main__":
-    logging.basicConfig(level=logging.DEBUG,format="[%(relativeCreated)09d] %(levelname)-6s %(name)s: %(msg)s");
+if (__name__ == "__main__"):
+    logging.basicConfig(level=logging.DEBUG, format="[%(relativeCreated)09d] %(levelname)-6s %(name)s: %(msg)s")
     sys.exit(main(sys.argv))

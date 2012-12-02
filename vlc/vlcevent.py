@@ -30,10 +30,12 @@ from . import util
 
 logger = logging.getLogger("vlc.vlcevent")
 
+
 #Event Contents
 class _eu_media_list_item_changed(ctypes.Structure):
     _fields_ = [("item",ctypes.c_void_p),
                 ("index",ctypes.c_long)]
+
 
 class EventUnion(ctypes.Union):
     _fields_ = [
@@ -61,13 +63,15 @@ class EventUnion(ctypes.Union):
         ('media_event',  libvlc.MediaEvent),
     ]
 
+
 class VlcEvent(libvlc._Cstruct):
     _fields_ = [
         ('type',   ctypes.c_int   ),
         ('object', ctypes.c_void_p),
         ('u',      EventUnion     ),
     ]
-    
+
+
 class BaseEventManager(object):
     """
     A Simple Event Manager
@@ -76,18 +80,18 @@ class BaseEventManager(object):
     logger = logger.getChild("EventManager")
     
     def __init__(self):
-        super(BaseEventManager,self).__init__()
+        super(BaseEventManager, self).__init__()
         self.p_debug = None
         self.p_callbacks = defaultdict(list)
     
-    def send(self,event):
+    def send(self, event):
         evt = event.type
-        if self.p_debug is not None:
+        if (self.p_debug is not None):
             self.p_debug(event)
         for cb in self.p_callbacks[evt]:
             cb(event)
     
-    def connect(self,evt,cb):
+    def connect(self, evt, cb):
         """
         Connect a Callback to an event
         
@@ -99,7 +103,7 @@ class BaseEventManager(object):
         """
         self.p_callbacks[evt].append(cb)
     
-    def disconnect(self,evt,cb):
+    def disconnect(self, evt, cb):
         """
         Disconnect a Callback from an event
         
@@ -119,10 +123,12 @@ class BaseEventManager(object):
             self.callback = callback
             self.args = args
             self.kwds = kwds
+        
         def matches(self, callback, args, kwds):
             return self.callback == callback and self.args == args and self.kwds == kwds
-        def __call__(self,event):
-            return self.callback(event,*self.args,**self.kwds)
+        
+        def __call__(self, event):
+            return self.callback(event, *self.args, **self.kwds)
     
     def event_attach(self, eventtype, callback, *args, **kwds):
         """
@@ -139,7 +145,7 @@ class BaseEventManager(object):
         DO NOT USE THIS IF YOU DO NOT NEED ADDITIONAL ARGUMENTS!
         USE connect(evt,cb) INSTEAD! ITS FASTER.
         """
-        self.connect (eventtype, self.ExtendedEventHandler(callback, args, kwds))
+        self.connect(eventtype, self.ExtendedEventHandler(callback, args, kwds))
     
     def event_detach(self, eventtype, callback, *args, **kwds):
         """
@@ -156,29 +162,37 @@ class BaseEventManager(object):
             if neither ARGS nor KWDS are specified, all extended callbacks connected to
             eventtype and referring to the specified function will be removed!
         """
-        if not args and not kwds:
-            self.logger.warn("event_detach: No args given. removing all callback%ss from event %s"%(callback,Event.name(eventtype)))
+        if (not args and not kwds):
+            self.logger.warn("event_detach: No args given. removing all callback%ss from event %s"
+                             % (callback, Event.name(eventtype)))
             for cb in self.p_callbacks[eventtype]:
-                if isinstance(cb, self.ExtendedEventHandler) and cb.callback == callback:
+                if (isinstance(cb, self.ExtendedEventHandler) and cb.callback == callback):
                     self.disconnect(eventtype, cb)
+
 
 class PyEventManager(BaseEventManager):
     __logger = logger.getChild("PyEventManager")
+    
     def __init__(self):
-        super(PyEventManager,self).__init__()
+        super(PyEventManager, self).__init__()
         self.regEvents = []
+    
     def register_event_type(self, evt):
         self.regEvents.append(evt)
+    
     def register_event_types(self, evtlist):
         self.regEvents.extend(evtlist)
+    
     def send(self, event):
-        if len(self.regEvents)>0 and event.type not in self.regEvents:
-            self.__logger.warn("Event Manager does not know about Event: %s (send)"%Event.name(event.type))
-        super(PyEventManager,self).send(event)
+        if (len(self.regEvents) > 0 and event.type not in self.regEvents):
+            self.__logger.warn("Event Manager does not know about Event: %s (send)" % Event.name(event.type))
+        super(PyEventManager, self).send(event)
+    
     def connect(self, evt, cb):
-        if len(self.regEvents)>0 and evt not in self.regEvents:
-            self.__logger.warn("Event Manager does not know about Event: %s"%Event.name(evt))
-        super(PyEventManager,self).connect(evt,cb)
+        if (len(self.regEvents) > 0 and evt not in self.regEvents):
+            self.__logger.warn("Event Manager does not know about Event: %s" % Event.name(evt))
+        super(PyEventManager, self).connect(evt, cb)
+
 
 class VlcEventManager(BaseEventManager):
     def __init__(self, player):
@@ -188,54 +202,56 @@ class VlcEventManager(BaseEventManager):
             libvlc_<type>_event_manager(libvlc_<type> object)
             <LibvlcWrapperObject>.get_event_manager()
         """
-        if isinstance(player,util._Ints):
+        if (isinstance(player, util._Ints)):
             # PTR
             self.c_man_p = ctypes.c_void_p(player)
-        elif isinstance(player, libvlc.EventManager):
+        elif (isinstance(player, libvlc.EventManager)):
             # libvlc_wrapper EventManager
             self.c_man_p = player._as_parameter_
         else:
             # libvlc_wrapper Player/Media/etc object
             self.c_man_p = player.event_manager()._as_parameter_
         
-        super(VlcEventManager,self).__init__()
+        super(VlcEventManager, self).__init__()
         self._haveEvent = list()
         d = ctypes.CFUNCTYPE(None, ctypes.POINTER(VlcEvent), ctypes.c_void_p)
-        self._handler = d( lambda event, user_data: self._dispatch(event.contents) )
+        self._handler = d(lambda event, user_data: self._dispatch(event.contents))
         self._as_parameter_ = self.c_man_p
     
     def _dispatch(self, event):
-        if event.type is None:
+        if (event.type is None):
             self.logger.warn("Got NULL Event")
             return
-        if event.type not in self._haveEvent:
-            self.logger.warn("Unrequested Event: %i"%event.type)
+        if (event.type not in self._haveEvent):
+            self.logger.warn("Unrequested Event: %i" % event.type)
             return
         self.send(event)
     
     def _attach(self, evt):
         r = libvlc.dll.libvlc_event_attach(self.c_man_p, evt, self._handler, None)
-        if r!=0: logger.getChild("EventManager").error("Could not attach event: %i"%evt)
+        if (r != 0):
+            logger.getChild("EventManager").error("Could not attach event: %i" % evt)
         self._haveEvent.append(evt)
     
     def _detach(self, evt):
         r = libvlc.dll.libvlc_event_detach(self.c_man_p, evt, self._handler, None)
-        if r!=0: logger.getChild("EventManager").warn("Could not detach event: %i"%evt)
+        if (r != 0):
+            logger.getChild("EventManager").warn("Could not detach event: %i" % evt)
         self._haveEvent.remove(evt)
     
     def connect(self, evt, slot):
-        super(VlcEventManager,self).connect(evt,slot)
-        if evt not in self._haveEvent:
+        super(VlcEventManager, self).connect(evt, slot)
+        if (evt not in self._haveEvent):
             self._attach(evt)
     
     def disconnect(self, evt, slot):
-        super(VlcEventManager,self).disconnect(evt,slot)
-        if len(self.p_callbacks[evt])<1:
-            self._detach(evt) 
+        super(VlcEventManager, self).disconnect(evt, slot)
+        if (len(self.p_callbacks[evt]) < 1):
+            self._detach(evt)
 
 #Event Mapping
 Event = util.vlcenum(libvlc.EventType)
-MediaEvent = util.Enum("media_event_e", 
+MediaEvent = util.Enum("media_event_e",
              MetaChanged        = Event.MediaMetaChanged,           #?
              SubItemAdded       = Event.MediaSubItemAdded,          #?
              DurationChanged    = Event.MediaDurationChanged,       #?
@@ -243,7 +259,7 @@ MediaEvent = util.Enum("media_event_e",
              Freed              = Event.MediaFreed,                 #?
              StateChanged       = Event.MediaStateChanged,          #?
              )
-MediaPlayerEvent = util.Enum("media_player_event_e", 
+MediaPlayerEvent = util.Enum("media_player_event_e",
              MediaChanged       = Event.MediaPlayerMediaChanged,    #None
              NothingSpecial     = Event.MediaPlayerNothingSpecial,  #None
              Opening            = Event.MediaPlayerOpening,         #None
@@ -258,34 +274,34 @@ MediaPlayerEvent = util.Enum("media_player_event_e",
              TimeChanged        = Event.MediaPlayerTimeChanged,     #new_time       [int]
              PositionChanged    = Event.MediaPlayerPositionChanged, #new_position   [float]
              SeekableChanged    = Event.MediaPlayerSeekableChanged, #
-             PausableChanged    = Event.MediaPlayerPausableChanged, 
-             TitleChanged       = Event.MediaPlayerTitleChanged, 
+             PausableChanged    = Event.MediaPlayerPausableChanged,
+             TitleChanged       = Event.MediaPlayerTitleChanged,
              SnapshotTaken      = Event.MediaPlayerSnapshotTaken,   #[psz_]filename [char*]
              LengthChanged      = Event.MediaPlayerLengthChanged,   #new_length     [longlong]
              Vout               = Event.MediaPlayerVout,            #new_count      [int]
              )
-MediaListEvent = util.Enum("media_list_event_e", 
+MediaListEvent = util.Enum("media_list_event_e",
              ItemAdded          = Event.MediaListItemAdded,         #?
              WillAddItem        = Event.MediaListWillAddItem,       #?
              ItemDeleted        = Event.MediaListItemDeleted,       #?
              WillDeleteItem     = Event.MediaListWillDeleteItem,    #?
              )
-MediaListViewEvent = util.Enum("media_list_view_event_e", 
+MediaListViewEvent = util.Enum("media_list_view_event_e",
              ItemAdded          = Event.MediaListViewItemAdded,     #?
              WillAddItem        = Event.MediaListViewWillAddItem,   #?
              ItemDeleted        = Event.MediaListViewItemDeleted,   #?
              WillDeleteItem     = Event.MediaListViewWillDeleteItem,#?
              )
-MediaListPlayerEvent = util.Enum("media_list_player_event_e", 
+MediaListPlayerEvent = util.Enum("media_list_player_event_e",
              Played             = Event.MediaListPlayerPlayed,      #?
              NextItemSet        = Event.MediaListPlayerNextItemSet, #?
              Stopped            = Event.MediaListPlayerStopped,     #?
              )
-MediaDiscovererEvent = util.Enum("media_discoverer_event_e", 
+MediaDiscovererEvent = util.Enum("media_discoverer_event_e",
              Started            = Event.MediaDiscovererStarted,     #?
              Ended              = Event.MediaDiscovererEnded,       #?
              )
-VideoLanManagerEvent = util.Enum("video_lan_manager_event_e", 
+VideoLanManagerEvent = util.Enum("video_lan_manager_event_e",
              MediaAdded         = Event.VlmMediaAdded,              #?
              MediaRemoved       = Event.VlmMediaRemoved,            #?
              MediaChanged       = Event.VlmMediaChanged,            #?
@@ -306,23 +322,29 @@ PyEventManager.mlEvent = mlEvent = MediaListEvent
 PyEventManager.lpEvent = lpEvent = MediaListPlayerEvent
 PyEventManager.mdEvent = mdEvent = MediaDiscovererEvent
 
+
 #build functions
 class _fromc(object):
     """ Gets a C Function and wraps it """
     @staticmethod
-    def _fromc(name,doc,cls,flags,types):
-        f=ctypes.CFUNCTYPE(*types)((name,libvlc.dll),flags)
-        def ec(r,f,a):
-            if r is None: return r
+    def _fromc(name, doc, cls, flags, types):
+        f = ctypes.CFUNCTYPE(*types)((name, libvlc.dll), flags)
+        
+        def ec(r, f, a):
+            if (r is None):
+                return r
             return cls(r)
+        
         f.errcheck = ec
         f.__doc__ = doc
         return f
-    def __init__(self,cls,flags,*types):
+    
+    def __init__(self, cls, flags, *types):
         self.cls = cls
         self.flags = flags
         self.types = types
-    def __call__(self,func):
+    
+    def __call__(self, func):
         return self._fromc(func.__name__, func.__doc__, self.cls, self.flags, self.types)
 
 @_fromc(VlcEventManager, ((1,),), ctypes.c_void_p, libvlc.Media)

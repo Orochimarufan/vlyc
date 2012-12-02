@@ -31,73 +31,89 @@ from __future__ import absolute_import, unicode_literals
 #\--------------------------------------------------------------------------------/
 import sys
 
+
 class Enum(object):
-    def __init__(self,name,_inherits=None,**vals):
-        if _inherits:
+    def __init__(self, name, _inherits=None, **vals):
+        if (_inherits):
             self.__vals__ = dict(_inherits.__vals__)
             self.__vals__.update(vals)
         else:
             self.__vals__ = vals
         self.__name__ = name
         self.export(self.__dict__)
+    
     def __str__(self):
-        return "Enum %s: %s"%(self.__name__,", ".join(self.__vals__.keys()))
+        return "Enum %s: %s" % (self.__name__, ", ".join(self.__vals__.keys()))
+    
     def __repr__(self):
-        return "Enum('%s', %s)"%(self.__name__,", ".join(["%s=%s"%(n,str(v)) for n,v in self.__vals__.items()]))
-    def __contains__(self,other):
+        return "Enum('%s', %s)" % (self.__name__, ", ".join(
+                ["%s=%s" % (n, str(v)) for n, v in self.__vals__.items()]))
+    
+    def __contains__(self, other):
         return other in self.__vals__.values()
-    def __instancecheck__(self,other):
+    
+    def __instancecheck__(self, other):
         return other in self
-    def export(self,ns=None):
+    
+    def export(self, ns=None):
         """ Export Enum values to another Namespace (like in C) """
-        if ns is None:
+        if (ns is None):
             ns = sys._getframe(0).f_back.f_locals
-        for n,v in self.__vals__.items():
-            ns[n]=v
-    def get(self,name,default=None):
-        return self.__vals__.get(name,default)
+        for n, v in self.__vals__.items():
+            ns[n] = v
+    
+    def get(self, name, default=None):
+        return self.__vals__.get(name, default)
+    
     def values(self):
         return self.__vals__.values()
+    
     def items(self):
         return self.__vals__.items()
+    
     def keys(self):
         return self.__vals__.keys()
+    
     def name(self, i):
         for n, v in self.items():
-            if v==i: return n
+            if (v == i):
+                return n
         return str(i)
 
+
 class AutoEnum(Enum):
-    def __init__(self,name,*vals,**vals3):
+    def __init__(self, name, *vals, **vals3):
         vals2 = dict()
         for i in range(len(vals)):
-            vals2[vals[i]]=i
+            vals2[vals[i]] = i
         vals2.update(vals3)
-        super(AutoEnum,self).__init__(name,**vals2)
+        super(AutoEnum, self).__init__(name, **vals2)
 
 #convert a libvlc Enum to our one
-vlcenum = lambda enum: Enum(enum.__name__, **dict([(n, v) for v,n in enum._enum_names_.items()]))
+vlcenum = lambda enum: Enum(enum.__name__, **dict([(n, v) for v, n in enum._enum_names_.items()]))
+
 
 #/--------------------------------------------------------------------------------\
 #| Py3k Stuff                                                                     |
 #+--------------------------------------------------------------------------------+
 #| Some Defs for Python2 / Python3 differences                                    |
 #\--------------------------------------------------------------------------------/
-def _typeconv(n,t,*a):
+def _typeconv(n, t, *a):
     """ Helper to create Type converters """
     def typeconv(d):
-        if not isinstance(d,t):
-            d = t(d,*a)
+        if (not isinstance(d, t)):
+            d = t(d, *a)
         return d
     typeconv.__name__ = n
     return typeconv
-if sys.hexversion>0x3000000:
+
+if (sys.hexversion > 0x3000000):
     _Ints       = int
     _Strings    = str
-    vlcstring   = _typeconv("vlcstring",bytes,"UTF-8")
-    pystring    = _typeconv("pystring",str,"UTF-8")
+    vlcstring   = _typeconv("vlcstring", bytes, "UTF-8")
+    pystring    = _typeconv("pystring", str, "UTF-8")
 else:
     _Ints       = int, long #@UndefinedVariable
     _Strings    = unicode, str #@UndefinedVariable
-    vlcstring   = _typeconv(str("vlcstring"),str,"utf8")
-    pystring    = _typeconv(str("pystring"),unicode,"utf8") #@UndefinedVariable
+    vlcstring   = _typeconv(str("vlcstring"), str, "utf8")
+    pystring    = _typeconv(str("pystring"), unicode, "utf8") #@UndefinedVariable

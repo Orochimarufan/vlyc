@@ -37,6 +37,7 @@ from libyo.youtube.resolve import profiles
 from libyo.util.util import sdict_parser
 from libyo.youtube import url as yt_url
 
+
 class YoutubeHandler(QtCore.QObject):
     """
     The YouTube Resolving Handler (to be run inside a thread)
@@ -45,20 +46,22 @@ class YoutubeHandler(QtCore.QObject):
     # Constants
     #+++++++++++++++++++++++++++++++++++++++++++/
     watch_regexp = yt_url.regexp
-    invalid_message= "URL does not seem to be a valid YouTube Video URL:\r\n%s"
-    resolve_message= "Could not resolve Video: %s\r\n(Are you sure your Internet connection is Up?)"
+    invalid_message = "URL does not seem to be a valid YouTube Video URL:\r\n%s"
+    resolve_message = "Could not resolve Video: %s\r\n(Are you sure your Internet connection is Up?)"
     logger = logging.getLogger("vlyc.YoutubeThread")
     main_q_lookup = list(profiles.profiles["mixed-avc"][0].values())
-    pref_q_lookup = [22,18,5]
+    pref_q_lookup = [22, 18, 5]
+    
     #/+++++++++++++++++++++++++++++++++++++++++++
     # Initialization
     #+++++++++++++++++++++++++++++++++++++++++++/
     def __init__(self):
-        super(YoutubeHandler,self).__init__()
+        super(YoutubeHandler, self).__init__()
         self.video_info = None
         self.qa_map = None
         self.subtitle_file = None
         self.subtitle_tracks = None
+    
     #/+++++++++++++++++++++++++++++++++++++++++++
     # Signals
     #+++++++++++++++++++++++++++++++++++++++++++/
@@ -68,8 +71,9 @@ class YoutubeHandler(QtCore.QObject):
     resolveBegn = QtCore.pyqtSignal()
     resolveDone = QtCore.pyqtSignal()
     resolveFail = QtCore.pyqtSignal("QString")
-    qualityList = QtCore.pyqtSignal("QStringList",int)
+    qualityList = QtCore.pyqtSignal("QStringList", int)
     newSubsList = QtCore.pyqtSignal("QStringList")
+    
     #/+++++++++++++++++++++++++++++++++++++++++++
     # Slots / Functions
     #+++++++++++++++++++++++++++++++++++++++++++/
@@ -82,14 +86,14 @@ class YoutubeHandler(QtCore.QObject):
         @emits [resolveBegn],[resolveDone],[resolveFail]
         @calls initVideo,initSubtitles
         """
-        self.logger.info("Initializing Video: %s"%url)
+        self.logger.info("Initializing Video: %s" % url)
         self.resolveBegn.emit()
         #Parse the Watch URL
         try:
             video_id = yt_url.getIdFromUrl(url)
-        except (ValueError,KeyError):
-            self.logger.debug("url error",exc_info=True)
-            self.resolveFail.emit(self.invalid_message%url)
+        except (ValueError, KeyError):
+            self.logger.debug("url error", exc_info=True)
+            self.resolveFail.emit(self.invalid_message % url)
             return
         #Initialize Video
         try: #We must not allow any Exceptions or the UI will block on the "Resolving Video" Dialog!
@@ -100,14 +104,14 @@ class YoutubeHandler(QtCore.QObject):
         try:
             self.initSubtitles(video_id)
         except:
-            self.logger.warn("Subtitles Exception",exc_info=sys.exc_info())
+            self.logger.warn("Subtitles Exception", exc_info=sys.exc_info())
         #Done
         self.resolveDone.emit()
 
     #/-------------------------------------------
     # Video URL Handling
     #-------------------------------------------/
-    def initVideo(self,video_id):
+    def initVideo(self, video_id):
         """
         [Internal] Resolve a Video
         @called initYoutube
@@ -115,34 +119,35 @@ class YoutubeHandler(QtCore.QObject):
         @emits  [resolveFail],[qualityList],[videoUrlSet],[newVideoInf]
         """
         #Get the Video URL
-        self.logger.debug("Resolving Video: %s"%video_id)
+        self.logger.debug("Resolving Video: %s" % video_id)
         video_info = resolve.resolve3(video_id)
-        if not video_info:
-            self.resolveFail(self.resolve_message%video_id)
+        if (not video_info):
+            self.resolveFail(self.resolve_message % video_id)
         self.video_info = video_info
         self.newVideoInf.emit(video_info)
         #Create Quality List
         self.logger.debug("Assembling Format List")
         self.qa_map = collections.OrderedDict()
         for f in self.main_q_lookup:
-            if f in video_info.urlmap:
-                self.qa_map[profiles.descriptions[f]]=f
+            if (f in video_info.urlmap):
+                self.qa_map[profiles.descriptions[f]] = f
         #Determine Initial Quality
         self.logger.debug("Determining fitting Quality Level")
         for f in self.pref_q_lookup:
-            if f in self.qa_map.values():
+            if (f in self.qa_map.values()):
                 fmt = f
-                break;
+                break
         else:
-            self.logger.warn("No Preferred Quality Available. Choosing First Entry: %s",list(self.qa_map.keys())[0])
+            self.logger.warn("No Preferred Quality Available. Choosing First Entry: %s",
+                             list(self.qa_map.keys())[0])
             fmt = list(self.qa_map.values())[0]
         #Emit Signal
         f = list(self.qa_map.values()).index(fmt)
-        self.qualityList.emit(list(self.qa_map.keys()),f)
+        self.qualityList.emit(list(self.qa_map.keys()), f)
         self.videoUrlSet.emit(self.video_info.fmt_url(fmt))
 
     @QtCore.pyqtSlot("QString")
-    def setQuality(self,descr):
+    def setQuality(self, descr):
         """
         Set the Quality Level
         @called [SLOT],initVideo
@@ -155,20 +160,20 @@ class YoutubeHandler(QtCore.QObject):
     #/-------------------------------------------
     # Subtitle Handling
     #-------------------------------------------/
-    def initSubtitles(self,video_id):
+    def initSubtitles(self, video_id):
         """
         [internal] Initialize Subtitles
         @called initVideo
         @args   str     video_id
         @emits  [newSubsList]
         """
-        self.logger.debug("Initializing Subtitles for Video '%s'"%self.video_info.title)
+        self.logger.debug("Initializing Subtitles for Video '%s'" % self.video_info.title)
         self.cleanupSubtitles()
         self.subtitle_tracks = subtitles.getTracks(video_id)
         self.newSubsList.emit([t.lang_original for t in self.subtitle_tracks])
 
     @QtCore.pyqtSlot(int)
-    def setSubtitleTrack(self,i):
+    def setSubtitleTrack(self, i):
         """
         Select a Subtitle Track
         @called [SLOT]
@@ -178,12 +183,12 @@ class YoutubeHandler(QtCore.QObject):
         """
         self.cleanupSubtitles()
         track           = self.subtitle_tracks[i]
-        self.logger.debug("Fetching Subtitle Track [%i] %s"%(i,track.lang_original))
-        file            = tempfile.NamedTemporaryFile("wb",prefix="vlycsub",suffix=".srt",delete=False)
+        self.logger.debug("Fetching Subtitle Track [%i] %s" % (i, track.lang_original))
+        file            = tempfile.NamedTemporaryFile("wb", prefix="vlycsub", suffix=".srt", delete=False)
         file.writable   = \
         file.seekable   = \
         file.readable   = lambda: True
-        handle          = io.TextIOWrapper(file,encoding="utf8")
+        handle          = io.TextIOWrapper(file, encoding="utf8")
         handle.write(track.getSRT())
         handle.close()
         file.close()
@@ -196,7 +201,7 @@ class YoutubeHandler(QtCore.QObject):
         [Internal] Cleanup Old Subtitles File
         @called initSubs, [terminated]
         """
-        if self.subtitle_file:
+        if (self.subtitle_file):
             os.remove(self.subtitle_file)
         self.subtitle_file = None
 
@@ -205,5 +210,5 @@ class YoutubeHandler(QtCore.QObject):
         Re-Emit the subsfileSet Signal
         @called [SLOT]
         """
-        if self.subtitle_file:
+        if (self.subtitle_file):
             self.subsfileSet.emit(self.subtitle_file)

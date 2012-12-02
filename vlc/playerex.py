@@ -35,17 +35,22 @@ logger = logging.getLogger("vlc.playerex")
 
 PlaybackMode = util.vlcenum(libvlc.PlaybackMode)
 
-LPlayerEvent = util.Enum("LPlayerEvent",_inherits=vlcevent.lpEvent,Ended=0x1000,PrepareNextItem=0x1001)
+LPlayerEvent = util.Enum("LPlayerEvent", _inherits=vlcevent.lpEvent,
+                         Ended=0x1000, PrepareNextItem=0x1001)
+
 
 #Helps
 def _retainItem(item):
-    if hasattr(item,"retain"):
+    if (hasattr(item, "retain")):
         item.retain()
     return item
+
+
 def _releaseItem(item):
-    if hasattr(item,"release"):
+    if (hasattr(item, "release")):
         item.release()
     return item
+
 
 class MediaEx(object):
     """
@@ -54,7 +59,7 @@ class MediaEx(object):
     
     __logger = logger.getChild("MediaEx")
     
-    def __init__(self,instance,mrl):
+    def __init__(self, instance, mrl):
         self.Instance = instance
         self.mrl    = mrl
         self.meta   = dict()
@@ -63,50 +68,60 @@ class MediaEx(object):
     @property
     def media(self):
         """ Simple Media object generation """
-        if ":" in self.mrl and self.mrl.index(":")>1:
+        if (":" in self.mrl and self.mrl.index(":") > 1):
             media = self.Instance.media_new_location(util.vlcstring(self.mrl))
         else:
             media = self.Instance.media_new_path(util.vlcstring(self.mrl))
         #Apply meta
-        for k,v in self.meta.items():
-            media.set_meta(k,util.vlcstring(v))
+        for k, v in self.meta.items():
+            media.set_meta(k, util.vlcstring(v))
         return media
     
     def __getitem__(self, meta):
         return self.meta[meta]
+    
     def __setitem__(self, meta, value):
         self.meta[meta] = value
+    
     def __delitem__(self, meta):
         del self.meta[meta]
     
     def set_meta(self, meta, value):
-        if value is None:
-            if meta in self.meta:
+        if (value is None):
+            if (meta in self.meta):
                 del self[meta]
             return
         self[meta] = value
+    
     def get_meta(self, meta):
         return self[meta]
     
     def set_user_data(self, data):
         self.user_data = data
+    
     def get_user_data(self):
         return self.user_data
     
     def get_mrl(self):
         return self.mrl
+    
     def get_instance(self):
         return self.Instance
+
 
 class DLock:
     def acquire(self):
         return
+    
     def release(self):
         return
+    
     def __enter__(self):
         return
-    def __exit__(self,*a):
+    
+    def __exit__(self, *a):
         return
+
 
 class MediaListL(list):
     """
@@ -123,56 +138,64 @@ class MediaListL(list):
     #Append
     def append(self, media):
         with self.p_lock:
-            super(MediaListL,self).append(_retainItem(media))
+            super(MediaListL, self).append(_retainItem(media))
+    
     def add_media(self, media):
-        super(MediaListL,self).append(_retainItem(media))
+        super(MediaListL, self).append(_retainItem(media))
     
     #Insert
     def insert(self, index, media):
         with self.p_lock:
-            super(MediaListL,self).insert(index, _retainItem(media))
+            super(MediaListL, self).insert(index, _retainItem(media))
+    
     def insert_media(self, media, index):
-        super(MediaListL,self).insert(index, _retainItem(media))
+        super(MediaListL, self).insert(index, _retainItem(media))
     
     #Public locking
     def lock(self):
         self.p_lock.acquire()
+    
     def unlock(self):
         self.p_lock.release()
     
     #Length
     def __len__(self):
         with self.p_lock:
-            return super(MediaListL,self).__len__()
+            return super(MediaListL, self).__len__()
+    
     def count(self):
-        return super(MediaListL,self).__len__()
+        return super(MediaListL, self).__len__()
     
     #Get
     def __getitem__(self, index):
         with self.p_lock:
-            return _retainItem(super(MediaListL,self).__getitem__(index))
+            return _retainItem(super(MediaListL, self).__getitem__(index))
+    
     def item_at_index(self, index):
-        return _retainItem(super(MediaListL,self).__getitem__(index))
+        return _retainItem(super(MediaListL, self).__getitem__(index))
     
     #Remove
     def __delitem__(self, index):
         with self.p_lock:
-            _releaseItem(super(MediaListL,self).__getitem__(index))
-            super(MediaListL,self).__delitem__(index)
+            _releaseItem(super(MediaListL, self).__getitem__(index))
+            super(MediaListL, self).__delitem__(index)
+        
     def remove_index(self, index):
-        _releaseItem(super(MediaListL,self).__getitem__(index))
-        super(MediaListL,self).__delitem__(index)
+        _releaseItem(super(MediaListL, self).__getitem__(index))
+        super(MediaListL, self).__delitem__(index)
     
     #Index
     def index(self, media):
         with self.p_lock:
-            return super(MediaListL,self).index(media)
+            return super(MediaListL, self).index(media)
+    
     def index_of_item(self, media):
-        return super(MediaListL,self).index(media)
+        return super(MediaListL, self).index(media)
     
     def event_manager(self):
         return self.p_event_manager
     get_event_manager = event_manager
+
 
 class LPlayer1(player.Player):
     """
@@ -190,8 +213,8 @@ class LPlayer1(player.Player):
     #/-------------------------------------------------------
     # Constructor
     #-------------------------------------------------------/
-    def __init__(self,instance=None):
-        super(LPlayer1,self).__init__(instance)
+    def __init__(self, instance=None):
+        super(LPlayer1, self).__init__(instance)
         
         self.MediaList          = None
         
@@ -209,14 +232,15 @@ class LPlayer1(player.Player):
     #/-------------------------------------------------------
     # VLC Event Callbacks
     #-------------------------------------------------------/
-    def vlcevent_end(self,event):
-        super(LPlayer1,self).vlcevent_end(event)
-        if self.MediaList.count()>self.np_index:
+    def vlcevent_end(self, event):
+        super(LPlayer1, self).vlcevent_end(event)
+        if (self.MediaList.count() > self.np_index):
             self.set_relative_playlist_position_and_play(1)
         else:
             event = vlcevent.VlcEvent()
             event.type = LPlayerEvent.Ended
             self.ListPlayerManager.send(event)
+    
     def mlistevent_deleted(self, event):
         pass #Nothing
     
@@ -226,6 +250,7 @@ class LPlayer1(player.Player):
     def install_playlist_observer(self):
         self.MediaListManager = self.MediaList.get_event_manager()
         #Install Work
+    
     def uninstall_playlist_observer(self):
         #Uninstall Work
         self.MediaListManager = None
@@ -236,7 +261,7 @@ class LPlayer1(player.Player):
     #-------------------------------------------------------/
     def set_media_list(self, p_ml):
         """ Set the used MediaList or MediaListL """
-        if self.MediaList:
+        if (self.MediaList):
             self.uninstall_playlist_observer()
             _releaseItem(self.MediaList)
         self.MediaList = _retainItem(p_ml)
@@ -244,7 +269,7 @@ class LPlayer1(player.Player):
     
     def play(self):
         """ Play """
-        if not self.np_media:
+        if (not self.np_media):
             self.set_relative_playlist_position_and_play(1)
         else:
             self.MediaPlayer.play()
@@ -261,13 +286,13 @@ class LPlayer1(player.Player):
     
     def play_item_at_index(self, index):
         item = self.MediaList[index]
-        self.set_current_playing(index,item)
+        self.set_current_playing(index, item)
         self.MediaPlayer.play()
     
     def set_current_playing(self, index, item):
         self.np_index = index
         self.np_item  = item
-        if isinstance(item, MediaEx):
+        if (isinstance(item, MediaEx)):
             self.np_media = item.media
         else:
             self.np_media = item
@@ -279,7 +304,7 @@ class LPlayer1(player.Player):
     
     def play_item(self, item):
         self.MediaList.lock()
-        if item not in self.MediaList:
+        if (item not in self.MediaList):
             return -1
         self.set_current_playing(self.MediaList.index_of_item(item), item)
         self.MediaList.unlock()
@@ -303,6 +328,7 @@ class LPlayer1(player.Player):
     
     def next(self): #@ReservedAssignment
         self.set_relative_playlist_position_and_play(1)
+    
     def previous(self):
         self.set_relative_playlist_position_and_play(-1)
     

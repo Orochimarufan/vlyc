@@ -40,6 +40,7 @@ from .widgets import PlayButton
 from .fullscreen import Controller as BaseFullscreenController
 from .settings import Settings
 
+
 class MainWindow(QtGui.QMainWindow):
     def setupUi(self):
         #/---------------------------------------
@@ -61,7 +62,7 @@ class MainWindow(QtGui.QMainWindow):
         self.video_widget.setObjectName("video_widget")
         self.video_widget.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         palette = self.video_widget.palette()
-        palette.setColor(QtGui.QPalette.Window, QtGui.QColor(0,0,0))
+        palette.setColor(QtGui.QPalette.Window, QtGui.QColor(0, 0, 0))
         self.video_widget.setPalette(palette)
         self.video_widget.setAutoFillBackground(True)
         self.root_layout.addWidget(self.video_widget)
@@ -72,7 +73,8 @@ class MainWindow(QtGui.QMainWindow):
         self.time_layout = QtGui.QHBoxLayout()
         self.time_layout.setObjectName("time_layout")
 
-        self.seeker = SeekSlider(QtCore.Qt.Horizontal, self.root_widget, Settings().value("MainWindow/classic_slider",False))
+        self.seeker = SeekSlider(QtCore.Qt.Horizontal, self.root_widget,
+            Settings().value("MainWindow/classic_slider", False))
         self.seeker.setObjectName("seeker")
         self.time_layout.addWidget(self.seeker)
 
@@ -120,7 +122,8 @@ class MainWindow(QtGui.QMainWindow):
         self.quality_combo.setFocusPolicy(QtCore.Qt.NoFocus)
         self.control_layout.addWidget(self.quality_combo)
 
-        self.sound_widget = SoundWidget(self.root_widget, Settings().value("MainWindow/shiny_sound",True))
+        self.sound_widget = SoundWidget(self.root_widget,
+            Settings().value("MainWindow/shiny_sound", True))
         self.sound_widget.setObjectName("sound_widget")
         self.sound_widget.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
         self.sound_widget.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -180,13 +183,14 @@ class MainWindow(QtGui.QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.__logger = logging.getLogger("vlyc.ui.MainWindow")
         self.setupUi()
-        self.resize(Settings().value("MainWindow/size",self.size()))
-        self.move(Settings().value("MainWindow/position",self.pos()))
+        self.resize(Settings().value("MainWindow/size", self.size()))
+        self.move(Settings().value("MainWindow/position", self.pos()))
 
     def savePosition(self):
         self.__logger.debug("MainWindow: saving position") #@UndefinedVariable
-        Settings().setValue("MainWindow/position",self.pos())
-        Settings().setValue("MainWindow/size",self.size())
+        Settings().setValue("MainWindow/position", self.pos())
+        Settings().setValue("MainWindow/size", self.size())
+
 
 class FullscreenController(BaseFullscreenController):
     def createUiInput(self):
@@ -231,25 +235,27 @@ class FullscreenController(BaseFullscreenController):
 
         return layout
 
+
 class AboutDialog(QtGui.QDialog):
-    def __init__(self,parent=None):
-        super(AboutDialog,self).__init__(parent)
+    def __init__(self, parent=None):
+        super(AboutDialog, self).__init__(parent)
         self.setupUi()
 
     def setupUi(self):
         tr = QtCore.QCoreApplication.instance().translate
 
         self.setObjectName("AboutDialog")
-        self.setSizePolicy(QtGui.QSizePolicy.Fixed,QtGui.QSizePolicy.Fixed)
-        self.setWindowTitle(tr("AboutDialog","About VLYC"))
-        self.resize(500,400)
+        self.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
+        self.setWindowTitle(tr("AboutDialog", "About VLYC"))
+        self.resize(500, 400)
 
         self.root_layout = QtGui.QVBoxLayout(self)
         self.root_layout.setObjectName("root_layout")
 
         import libyo
         from vlc.libvlc import libvlc_get_version
-        from platform import platform,architecture,machine,python_version,python_implementation
+        from platform import (platform, architecture, machine,
+                              python_version, python_implementation)
         self.about_text = QtGui.QTextEdit(self)
         self.about_text.setObjectName("about_text")
         self.about_text.setReadOnly(True)
@@ -295,14 +301,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see &lt;<a href="http://www.gnu.org/licenses/">http://www.gnu.org/licenses/</a>&gt;.<br>
 """).format(python_version=python_version(),
             python_implementation=python_implementation(),
-            frozen=" (frozen binary distribution)" if hasattr(sys,"frozen") else "",
+            frozen=" (frozen binary distribution)" if (hasattr(sys, "frozen")) else "",
             vlyc_version=QtCore.QCoreApplication.instance().applicationVersion(),
-            libvlc_version=str(libvlc_get_version(),"latin-1"),
+            libvlc_version=str(libvlc_get_version(), "latin-1"),
             libyo_version=libyo.version,
             qt_version=QtCore.qVersion(),
             pyqt4_version=QtCore.PYQT_VERSION_STR,
             platform=platform(),
-            arch="%s on %s"%(architecture()[0],machine())))
+            arch="%s on %s" % (architecture()[0], machine())))
         self.about_text.setFocusPolicy(QtCore.Qt.NoFocus)
         self.root_layout.addWidget(self.about_text)
 
@@ -312,7 +318,7 @@ along with this program.  If not, see &lt;<a href="http://www.gnu.org/licenses/"
 
         self.about_qt_button = QtGui.QPushButton(self)
         self.about_qt_button.setObjectName("about_qt_button")
-        self.about_qt_button.setText(tr("AboutDialog","About Qt"))
+        self.about_qt_button.setText(tr("AboutDialog", "About Qt"))
         self.about_qt_button.clicked.connect(QtGui.QApplication.instance().aboutQt)
         self.button_box.addWidget(self.about_qt_button)
 
@@ -320,7 +326,7 @@ along with this program.  If not, see &lt;<a href="http://www.gnu.org/licenses/"
 
         self.close_button = QtGui.QPushButton(self)
         self.close_button.setObjectName("close_button")
-        self.close_button.setText(tr("AboutDialog","Ok"))
+        self.close_button.setText(tr("AboutDialog", "Ok"))
         self.close_button.clicked.connect(self.close)
         self.button_box.addWidget(self.close_button)
 

@@ -31,30 +31,41 @@ from . import util
 
 logger = logging.getLogger("vlc.player")
 
+
 def libvlc_version():
     return tuple([int(i) for i in libvlc_versionstring().split(" ")[0].split(".")])
+
+
 def libvlc_hexversion():
-    return int("{0:02x}{1:02x}{2:02x}".format(*libvlc_version()),16)
+    return int("{0:02x}{1:02x}{2:02x}".format(*libvlc_version()), 16)
+
+
 def libvlc_codename():
-    return libvlc_versionstring().split(" ",2)[1]
+    return libvlc_versionstring().split(" ", 2)[1]
+
+
 def libvlc_versionstring():
     return util.pystring(libvlc.libvlc_get_version())
 
 Signal = QtCore.pyqtSignal
-
 _instance = None
+
+
 def initInstance(argv=None):
     global _instance
-    if _instance:
+    if (_instance):
         raise libvlc.VLCException("libvlc already initialized!")
     _instance = libvlc.Instance(*argv)
     return not not _instance
+
+
 def getInstance():
     global _instance
-    if not _instance:
+    if (not _instance):
         #_instance = libvlc.Instance()
-        _instance = libvlc.libvlc_new(0,None)
+        _instance = libvlc.libvlc_new(0, None)
     return _instance
+
 
 class Player(QtCore.QObject):
     """
@@ -113,15 +124,15 @@ class Player(QtCore.QObject):
     #/-------------------------------------------------------
     # Constructor
     #-------------------------------------------------------/
-    def __init__(self,instance=None):
+    def __init__(self, instance=None):
         """
         Construct a Player instance
         
         @arg instance    libvlc instance. default: global vlyc.player instance
         """
-        super(Player,self).__init__()
+        super(Player, self).__init__()
         
-        if instance is None:
+        if (instance is None):
             instance = getInstance()
         
         self.Instance = instance
@@ -146,27 +157,36 @@ class Player(QtCore.QObject):
     #/-------------------------------------------------------
     # VLC Events
     #-------------------------------------------------------/
-    def vlcevent_nothing(self,event):
+    def vlcevent_nothing(self, event):
         self.stateChanged.emit(self.State.NothingSpecial)
-    def vlcevent_opening(self,event):
+    
+    def vlcevent_opening(self, event):
         self.stateChanged.emit(self.State.Opening)
-    def vlcevent_buffering(self,event):
+    
+    def vlcevent_buffering(self, event):
         self.stateChanged.emit(self.State.Buffering)
         self.buffering.emit(event.u.new_cache)
-    def vlcevent_paused(self,event):
+    
+    def vlcevent_paused(self, event):
         self.stateChanged.emit(self.State.Paused)
-    def vlcevent_playing(self,event):
+    
+    def vlcevent_playing(self, event):
         self.stateChanged.emit(self.State.Playing)
-    def vlcevent_end(self,event):
+    
+    def vlcevent_end(self, event):
         self.stateChanged.emit(self.State.Ended)
         self.endReached.emit()
-    def vlcevent_error(self,event):
+    
+    def vlcevent_error(self, event):
         self.stateChanged.emit(self.State.Error)
-    def vlcevent_media(self,event):
+    
+    def vlcevent_media(self, event):
         self.mediaChanged.emit(libvlc.Media(event.u.media))
-    def vlcevent_position(self,event):
+    
+    def vlcevent_position(self, event):
         self.positionChanged.emit(event.u.new_position)
-    def vlcevent_time(self,event):
+    
+    def vlcevent_time(self, event):
         self.timeChanged.emit(event.u.new_time)
     
     #/-------------------------------------------------------
@@ -174,11 +194,12 @@ class Player(QtCore.QObject):
     #-------------------------------------------------------/
     def open_media(self, mrl):
         mrl = util.pystring(mrl)
-        if ":" in mrl and mrl.index(":")>1:
+        if (":" in mrl and mrl.index(":") > 1):
             media = self.Instance.media_new_location(util.vlcstring(mrl))
         else:
             media = self.Instance.media_new_path(util.vlcstring(mrl))
         return media
+    
     def open(self, mrl): #@ReservedAssignment
         self.set_media(self.open_media(mrl))
     
@@ -187,7 +208,8 @@ class Player(QtCore.QObject):
     #-------------------------------------------------------/
     def __getattr__(self, name):
         """ Redirect Other Requests to the MediaPlayer Instance """
-        return getattr(self.MediaPlayer,name)
+        return getattr(self.MediaPlayer, name)
+
 
 class CPlayer(Player):
     """
@@ -212,7 +234,7 @@ class CPlayer(Player):
     
     you can connect to libvlc events directly if you must:
         p = Player()
-        my_function = lambda e: print(e.u.new_time,end="\r")
+        my_function = lambda e: print(e.u.new_time, end="\r")
         p.mpManager.connect(p.mpManager.mpEvent.TimeChanged, my_function)
     or:
         p.mpManager.connect(p.mpManager.Event.MediaPlayerTimeChanged, my_function)
@@ -227,7 +249,7 @@ class CPlayer(Player):
     """
     
     #constructor
-    def __init__(self,p_inst=None):
+    def __init__(self, p_inst=None):
         super(CPlayer, self).__init__(p_inst)
         
         self.ListPlayer = self.Instance.media_list_player_new()

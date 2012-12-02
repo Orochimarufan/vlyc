@@ -30,8 +30,10 @@ from . import vlcevent
 
 logger = logging.getLogger("vlc.medialist")
 
+
 class MediaList(object):
     logger = logger.getChild("MediaList")
+    
     def __init__(self, p_inst):
         self.p_libvlc_instance = p_inst
         self.p_libvlc_event_manager = vlcevent.PyEventManager(p_inst)
@@ -44,23 +46,28 @@ class MediaList(object):
         #Not really necessary
         self.refcount_lock = threading.Lock()
         self.i_refcount = 1
+    
     def retain(self):
         self.refcount_lock.aquire()
-        self.i_refcount+=1
+        self.i_refcount += 1
         self.refcount_lock.release()
+    
     def release(self):
         self.refcount_lock.aquire()
-        self.i_refcount-=1
-        if self.i_refcount<0:
-            self.logger.warn("Refcount<0!")
+        self.i_refcount -= 1
+        if (self.i_refcount < 0):
+            self.logger.warn("Refcount < 0!")
         self.refcount_lock.release()
+    
     #add_file_content(psz_uri) : How to implement?
-    def set_media(self,p_md):
+    
+    def set_media(self, p_md):
         with self.object_lock:
-            if self.p_md is not None:
+            if (self.p_md is not None):
                 self.p_md.release()
                 p_md.retain()
-                self.p_md=p_md
+                self.p_md = p_md
+    
     def media(self):
         """
          * If this media_list comes is a media's subitems,
@@ -70,64 +77,74 @@ class MediaList(object):
          * media.
         """
         with self.object_lock:
-            if self.p_md:
+            if (self.p_md):
                 return self.p_md
+    
     def count(self):
         """ Lock should be held when entering """
         return len(self.items)
-    def add_media(self,p_md):
+    
+    def add_media(self, p_md):
         """ Lock should be held when entering """
-        if not self.b_read_only:
+        if (not self.b_read_only):
             p_md.retain()
-            self.notify_item_addition(p_md,self.count(),False)
+            self.notify_item_addition(p_md, self.count(), False)
             self.items.append(p_md)
-            self.notify_item_addition(p_md,self.count()-1,True)
+            self.notify_item_addition(p_md, self.count() - 1, True)
             return True
         return False
-    def insert_media(self,p_md,index):
+    
+    def insert_media(self, p_md, index):
         """ Lock should be held when entering """
-        if not self.b_read_only:
+        if (not self.b_read_only):
             p_md.retain()
-            self.notify_item_addition(p_md,index,False)
-            self.items.insert(index,p_md)
-            self.notify_item_addition(p_md,index,True)
+            self.notify_item_addition(p_md, index, False)
+            self.items.insert(index, p_md)
+            self.notify_item_addition(p_md, index, True)
             return True
         return False
-    def remove_index(self,index):
+    
+    def remove_index(self, index):
         """ Lock should be held when entering """
-        if not self.b_read_only:
+        if (not self.b_read_only):
             p_md = self.items[index]
-            self.notify_item_deletion(p_md,index,False)
+            self.notify_item_deletion(p_md, index, False)
             self.items.pop(index)
-            self.notify_item_deletion(p_md,index,True)
+            self.notify_item_deletion(p_md, index, True)
             p_md.release()
             return True
         return False
-    def item_at_index(self,index):
+    
+    def item_at_index(self, index):
         """ Lock should be held when entering """
         p_md = self.items[index]
         p_md.retain()
         return p_md
-    def index_of_item(self,p_searched_md):
+    
+    def index_of_item(self, p_searched_md):
         """
         Lock should be held when entering
         Warning: Returns first matching item
         """
         return self.items.index(p_searched_md)
+    
     def is_readonly(self):
         return self.b_read_only
+    
     def lock(self):
         return self.object_lock.aquire()
+    
     def unlock(self):
         return self.object_lock.release()
+    
     def event_manager(self):
         """ Event Manager is immutable, so lock neednt be held """
         return self.p_libvlc_event_manager
     
     #Private
-    def notify_item_addition(self,p_md,index,finished):
+    def notify_item_addition(self, p_md, index, finished):
         event = vlcevent.VlcEvent()
-        if finished:
+        if (finished):
             event.type = vlcevent.mlEvent.ItemAdded
             event.u.media_list_item_added.item = p_md
             event.u.media_list_item_added.index = index
@@ -136,9 +153,10 @@ class MediaList(object):
             event.u.media_list_will_add_item.item = p_md
             event.u.media_list_will_add_item.index = index
         self.p_libvlc_event_manager.fire(event)
-    def notify_item_deletion(self,p_md,index,finished):
+    
+    def notify_item_deletion(self, p_md, index, finished):
         event = vlcevent.VlcEvent()
-        if finished:
+        if (finished):
             event.type = vlcevent.mlEvent.ItemDeleted
             event.u.media_list_item_deleted.item = p_md
             event.u.media_list_item_deleted.index = index
@@ -148,15 +166,18 @@ class MediaList(object):
             event.u.media_list_will_delete_item.index = index
         self.p_libvlc_event_manager.send(event)
 
+
 class MediaListPlayer(object):
     def __init__(self):
         pass
+    
     def lock(self):
         self.object_lock.aquire()
         self.mp_callback_lock.aquire()
+    
     def unlock(self):
         self.mp_callback_lock.release()
         self.object_lock.release()
+    
     def assert_locked(self):
         pass
-    
