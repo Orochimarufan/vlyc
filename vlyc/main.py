@@ -53,7 +53,7 @@ from .ui import AboutDialog
 
 from .youtube import YoutubeHandler
 
-from .auth import auth
+from . import auth
 
 import json
 
@@ -182,7 +182,7 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.file_open_file_action.triggered.connect(self.open_file)
         self.main_window.file_open_stream_action.triggered.connect(self.open_mrl)
         self.main_window.help_about_action.triggered.connect(self.show_about)
-        self.main_window.tools_login_action.triggered.connect(lambda: auth(None))
+        self.main_window.tools_login_action.triggered.connect(self.on_actionLogin_triggered)
         self.main_window.tools_getfeed_action.triggered.connect(self.on_actionGetFeed_triggered)
 
         #/---------------------------------------
@@ -225,6 +225,11 @@ class VlycApplication(QtGui.QApplication):
         #/---------------------------------------
         # Set up Youtube Thread
         #---------------------------------------/
+        # login
+        if(auth.init() == 2):
+            self.main_window.tools_login_action.setEnabled(False)
+            QtGui.QMessageBox.information(None, "YouTube Login disabled", "Google services login has been disabled due to missing client_secrets.\nPlease get a Google API key for OAuth2.0 on the YouTube Data API and put the client_secrets into\n%s" % auth.path)
+        # resolver thread
         self.youtube_thread = QtCore.QThread()
         self.init_yt()
         self.youtube_thread.start()
@@ -295,6 +300,9 @@ class VlycApplication(QtGui.QApplication):
     #/-------------------------------------------
     # New UI slots
     #-------------------------------------------/
+    def on_actionLogin_triggered(self):
+        auth.auth(self.main_window)
+    
     def on_actionGetFeed_triggered(self):
         feed, ok = QtGui.QInputDialog.getText(self.main_window, "Enter feed", "enter the youtube data api v2 feed path relative to http://gdata.youtube.com/feeds/api/", text=self.last_feed if self.last_feed is not None else "")
         if not ok:
@@ -305,7 +313,7 @@ class VlycApplication(QtGui.QApplication):
             if not self.feed_window:
                 self.feed_window = QtGui.QListWidget()
                 self.feed_window.itemActivated.connect(self.on_feedWindow_itemActivated)
-            self.feed_window.setWindowTitle(feed)
+            self.feed_window.setWindowTitle("Feed: %s" % feed)
             self.feed_window.clear()
             for item in data["data"]["items"]:
                 li = QtGui.QListWidgetItem(self.feed_window)
@@ -316,6 +324,7 @@ class VlycApplication(QtGui.QApplication):
             QtGui.QMessageBox.information(self.main_window, "Response", json.dumps(data))
     
     def on_feedWindow_itemActivated(self, item):
+        self.player.stop()
         self._yt_sig_initid.emit(item.data(QtCore.Qt.UserRole)["id"])
 
     #/-------------------------------------------

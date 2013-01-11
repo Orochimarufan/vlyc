@@ -29,16 +29,29 @@ import os
 import logging
 logger = logging.getLogger(__name__)
 
-yauth.init(os.path.expanduser("~/.config/Orochimarufan/client_secrets.json"))
-ok = yauth.login(os.path.expanduser("~/.config/Orochimarufan/vlyc_lastlogin"))
-if ok:
-    logger.info("Found credentials in %s" % yauth._cache)
+
+def init():
+    global path, ok
+    path = QtGui.QDesktopServices.storageLocation(QtGui.QDesktopServices.DataLocation)
+    logger.info("Login data stored in %s" % path)
+    
+    client_secrets = os.path.join(path, "client_secrets.json")
+    if not os.path.exists(client_secrets):
+        logger.warning("client secrets not found: %s" % client_secrets)
+        return 2
+    yauth.init(client_secrets)
+    ok = yauth.login(os.path.join(path, "lastlogin"))
+    if ok:
+        logger.info("Found credentials in %s" % yauth._cache)
+        return 0
+    return 1
 
 
 def auth(parent):
     url = yauth.beginAuth()
-    window = QtGui.QDialog(parent) 
-    web =QtWebKit.QWebView(window)
+    window = QtGui.QDialog(parent)
+    window.resize(800, 600)
+    web = QtWebKit.QWebView(window)
     u = QtCore.QUrl(url)
     #logger.info("Url in: '%s'\nUrl enc: '%s'\nUrl str: '%s'" % (url, u.toEncoded(), u.toString()))
     web.load(u)
@@ -55,4 +68,4 @@ def auth(parent):
             window.destroy()
     
     web.loadFinished.connect(load_callback)
-    web.show()
+    window.show()
