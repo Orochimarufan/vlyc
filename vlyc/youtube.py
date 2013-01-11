@@ -95,6 +95,15 @@ class YoutubeHandler(QtCore.QObject):
             self.logger.debug("url error", exc_info=True)
             self.resolveFail.emit(self.invalid_message % url)
             return
+        self._initYoutubeId(video_id)
+    
+    @QtCore.pyqtSlot("QString")
+    def initYoutubeId(self, video_id):
+        self.logger.info("Initializing Vide by ID: %s" % video_id)
+        self.resolveBegn.emit()
+        self._initYoutubeId(video_id)
+    
+    def _initYoutubeId(self, video_id):
         #Initialize Video
         try: #We must not allow any Exceptions or the UI will block on the "Resolving Video" Dialog!
             self.initVideo(video_id)

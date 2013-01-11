@@ -1,8 +1,8 @@
 """
 /*****************************************************************************
- * vlyc :: __init__.py : VLYC Package Init, Version Info
+ * vlyc :: __main__.py : VLYC EntryPoint
  ****************************************************************************
- * Copyright (C) 2012-2013 Orochimarufan
+ * Copyright (C) 2012 Orochimarufan
  *
  * Authors:  Orochimarufan <orochimarufan.x3@gmail.com>
  *
@@ -22,26 +22,11 @@
  *****************************************************************************/
 """
 
-version_info = (0, 1, 7)
-codename = "Twoflower"
-version = "0.1.7 Twoflower"
-date = (2013, 1, 8)
+from __future__ import absolute_import
+from .main import main
+import sys
+import logging
 
-# import Qt
-# PySide is broken right now, QStyle.drawComplexControl() gets wrong QStyleOptionComplex Subclass
-#import sys
-#try:
-#    from PySide import QtCore, QtGui
-#except ImportError:
-import sip
-sip.setapi("QString", 2)
-sip.setapi("QVariant", 2)
-from PyQt4 import QtCore
-QtCore.Signal = QtCore.pyqtSignal
-QtCore.Slot = QtCore.pyqtSlot
-QtCore.Property = QtCore.pyqtProperty
-#else:
-#    sys.modules['PyQt4'] = sys.modules['PySide']
-#    QtCore.pyqtSignal = QtCore.Signal
-#    QtCore.pyqtSlot = QtCore.Slot
-#    QtCore.pyqtProperty = QtCore.Property
+if (__name__ == "__main__"):
+    logging.basicConfig(level=logging.DEBUG, format="[%(relativeCreated)09d] %(levelname)-6s %(name)s: %(msg)s")
+    sys.exit(main(sys.argv))

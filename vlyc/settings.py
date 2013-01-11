@@ -24,7 +24,7 @@
 from __future__ import absolute_import, unicode_literals
 
 from PyQt4 import QtCore
-from .util import QSingleton
+from .util import Singleton
 
 
 class QSProxy(object):
@@ -46,12 +46,18 @@ class QSProxy(object):
     __setattr__ = __setitem__
 
 
-@QSingleton
-class Settings(QtCore.QSettings):
+@Singleton
+class Settings(object):
     _cx = staticmethod(lambda c, k: "/".join((c, k)))
     
+    def __init__(self, *a, **b):
+        self.qsettings = QtCore.QSettings(*a, **b)
+    
     def __getattr__(self, fcat):
-        return QSProxy(self, fcat)
+        try:
+            return getattr(self.qsettings, fcat)
+        except AttributeError:
+            return QSProxy(self, fcat)
     
     def __getitem__(self, key):
         if (isinstance(key, slice)):

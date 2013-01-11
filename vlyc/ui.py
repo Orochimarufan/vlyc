@@ -162,6 +162,15 @@ class MainWindow(QtGui.QMainWindow):
         self.file_quit_action = self.file_menu.addAction("&Quit")
         self.file_quit_action.setObjectName("file_quit_action")
         self.file_quit_action.setShortcut("Ctrl+Q")
+        
+        self.tools_menu = self.menubar.addMenu("&Tools")
+        self.tools_menu.setObjectName("tools_menu")
+        
+        self.tools_login_action = self.tools_menu.addAction("&Login")
+        self.tools_login_action.setObjectName("tools_login_action")
+        
+        self.tools_getfeed_action = self.tools_menu.addAction("getFeed")
+        self.tools_getfeed_action.setObjectName("tools_getfeed_action")
 
         self.help_menu = self.menubar.addMenu("&Help")
         self.help_menu.setObjectName("help_menu")
@@ -190,6 +199,9 @@ class MainWindow(QtGui.QMainWindow):
         self.__logger.debug("MainWindow: saving position") #@UndefinedVariable
         Settings().setValue("MainWindow/position", self.pos())
         Settings().setValue("MainWindow/size", self.size())
+    
+    def closeEvent(self, e):
+        QtGui.qApp.quit()
 
 
 class FullscreenController(BaseFullscreenController):

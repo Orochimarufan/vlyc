@@ -44,9 +44,11 @@ public:
         if (cc == self.CC_Slider):
             painter.setRenderHints(QtGui.QPainter.Antialiasing)
             
+            #print(cc, option, painter, widget, type(option), option.Type)
+            
             if (not isinstance(option, QtGui.QStyleOptionSlider)):
-                QtCore.qWarning() << "SeekStyle: Drawing an unmanaged control"
-                super(SeekStyle, self).drawComplexControl(cc, option, widget)
+                QtCore.qWarning("SeekStyle: Drawing an unmanaged control")
+                super(SeekStyle, self).drawComplexControl(cc, option, painter, widget)
                 return
             slider = option
             

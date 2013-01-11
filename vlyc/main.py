@@ -36,6 +36,7 @@ from PyQt4 import QtGui
 
 import libyo
 from libyo.argparse import LibyoArgumentParser
+from libyo.youtube.gdata import gdata
 
 from vlc import player
 from vlc import util
@@ -51,6 +52,10 @@ from .ui import FullscreenController
 from .ui import AboutDialog
 
 from .youtube import YoutubeHandler
+
+from .auth import auth
+
+import json
 
 
 class VlycApplication(QtGui.QApplication):
@@ -166,6 +171,8 @@ class VlycApplication(QtGui.QApplication):
         self._yt_uploa = None
         self._yt_is_video = False
         self.about_dlg = None
+        self.last_feed = None
+        self.feed_window = None
 
         #/---------------------------------------
         # MenuBar Actions
@@ -175,6 +182,8 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.file_open_file_action.triggered.connect(self.open_file)
         self.main_window.file_open_stream_action.triggered.connect(self.open_mrl)
         self.main_window.help_about_action.triggered.connect(self.show_about)
+        self.main_window.tools_login_action.triggered.connect(lambda: auth(None))
+        self.main_window.tools_getfeed_action.triggered.connect(self.on_actionGetFeed_triggered)
 
         #/---------------------------------------
         # Time Toolbar Actions
@@ -282,6 +291,32 @@ class VlycApplication(QtGui.QApplication):
         self.settings.sync()
 
         return 0
+    
+    #/-------------------------------------------
+    # New UI slots
+    #-------------------------------------------/
+    def on_actionGetFeed_triggered(self):
+        feed, ok = QtGui.QInputDialog.getText(self.main_window, "Enter feed", "enter the youtube data api v2 feed path relative to http://gdata.youtube.com/feeds/api/", text=self.last_feed if self.last_feed is not None else "")
+        if not ok:
+            return
+        self.last_feed = feed
+        data = gdata(feed)
+        if "items" in data["data"]:
+            if not self.feed_window:
+                self.feed_window = QtGui.QListWidget()
+                self.feed_window.itemActivated.connect(self.on_feedWindow_itemActivated)
+            self.feed_window.setWindowTitle(feed)
+            self.feed_window.clear()
+            for item in data["data"]["items"]:
+                li = QtGui.QListWidgetItem(self.feed_window)
+                li.setText(item["title"])
+                li.setData(QtCore.Qt.UserRole, item)
+            self.feed_window.show()
+        else:
+            QtGui.QMessageBox.information(self.main_window, "Response", json.dumps(data))
+    
+    def on_feedWindow_itemActivated(self, item):
+        self._yt_sig_initid.emit(item.data(QtCore.Qt.UserRole)["id"])
 
     #/-------------------------------------------
     # Event Slots
@@ -382,6 +417,7 @@ class VlycApplication(QtGui.QApplication):
     # youtube
     #-------------------------------------------/
     _yt_sig_init = QtCore.pyqtSignal("QString")
+    _yt_sig_initid = QtCore.pyqtSignal("QString")
     _yt_sig_qual = QtCore.pyqtSignal("QString")
     _yt_sig_subs = QtCore.pyqtSignal(int)
     _yt_sig_anns = QtCore.pyqtSignal()
@@ -391,6 +427,7 @@ class VlycApplication(QtGui.QApplication):
         self.youtube_thread.started.connect(lambda: self.youtube.logger.debug("YoutubeThread started"))
         self.youtube_thread.terminated.connect(self.youtube.cleanupSubtitles)
         self._yt_sig_init.connect(self.youtube.initYoutube)
+        self._yt_sig_initid.connect(self.youtube.initYoutubeId)
         self._yt_sig_qual.connect(self.youtube.setQuality)
         self._yt_sig_subs.connect(self.youtube.setSubtitleTrack)
         self._yt_sig_anns.connect(self.youtube.reannounceSubtitles)

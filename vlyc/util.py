@@ -119,16 +119,5 @@ class _Singleton(type):
 Singleton = WithMeta(_Singleton)
 
 
-class _QSingleton(QtCore.pyqtWrapperType, _Singleton):
-    #PyQt's Meta Wrapper doesn't hand down __init__.
-    def __init__(self, name, bases, dct):
-        super(_QSingleton, self).__init__(name, bases, dct)
-        self._instance = None
-        if (__debug__):
-            self._creation_frame = None
-
-QSingleton = WithMeta(_QSingleton)
-
-
 __all__ = ["Enum", "AutoEnum",
            "OnObject", "WithMeta", "Singleton", "QSingleton"]

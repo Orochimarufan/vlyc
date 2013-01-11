@@ -279,7 +279,7 @@ class SoundWidget(QtGui.QWidget):
         #We need a layout for this widget
         layout = QtGui.QHBoxLayout(self)
         layout.setSpacing(0)
-        layout.setMargin(0)
+        layout.setContentsMargins(0,0,0,0)
         
         #We need a label for the pix
         self.volMuteLabel = QtGui.QLabel()

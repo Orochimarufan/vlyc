@@ -40,7 +40,7 @@ print(sys.platform.upper())
 #--------------------------------------------------
 print("Determining Version Number...",end=" "*12)
 
-import libyo
+import vlyc
 
 pipe = Popen(["git","rev-list","--all"],stdout=PIPE)
 pipe.wait()
@@ -51,110 +51,63 @@ clean = call(["git","diff-files","--quiet"])==0 and \
 
 if sys.platform=="win32":
     if clean:
-        version = "{1}.{2}.{3}{4:02}.{0}".format(rev, *libyo.version_info)
+        version = "{1}.{2}.{3}.{0}".format(rev, *vlyc.version_info)
     else:
-        version = "{1}.{2}.{3}{4:02}.{0}".format(rev, *libyo.version_info) #do something to indicate unclean buildi
+        #XXX: something to indicate unclean builds
+        version = "{1}.{2}.{3}.{0}".format(rev, *vlyc.version_info)
 else:
     pipe = Popen(["git","rev-list","HEAD","-n1","--abbrev-commit"],stdout=PIPE)
     pipe.wait()
     git = pipe.stdout.read().decode("utf8").strip()
-    version = "{2}.{3}.{4}.{5}-{0}git{1}".format(rev, git, *libyo.version_info)
+    version = "{2}.{3}.{4}-{0}git{1}".format(rev, git, *vlyc.version_info)
     if not clean:
-        version+="+M"
+        version+="+"
 
 print(version)
 with open("VERSION","w") as v:
     v.write(version)
 
 #--------------------------------------------------
-# Executables
+# Options
 #--------------------------------------------------
-print("Setting up Executable Configurations...",end=" "*2)
+print("Setting Build Options")
+
 vlyc = Executable(
     script = "vlyc2.py",
     initScript = inits,
     base = base,
     targetName = "vlyc"+ext,
     )
-youfeed = Executable(
-    script = "youfeed.py",
-    initScript = None,
-    base = None,
-    targetName = "youfeed"+ext,
-    )
-afp = Executable(
-    script = "antiflashplayer.py",
-    initScript = None,
-    base = None,
-    targetName = "afp"+ext,
-    )
 
-execs   = [ vlyc, youfeed, afp ]
-include = [ ]
-exclude = [ "tkinter", "Tkinter" ]
-package = [ ]
-files   = [ "VERSION" ]
+execs   = [vlyc]
+include = ["re", "io", "PyQt4.QtCore", "PyQt4.QtGui"]
+exclude = ["tkinter", "Tkinter"]
+package = ["libyo.compat.features"]
+files   = ["VERSION"]
 
-for i in sys.argv:
-    if i == "--no-vlyc":
-        execs.remove(vlyc)
-    elif i == "--no-youfeed":
-        execs.remove(youfeed)
-    elif i == "--no-afp":
-        execs.remove(afp)
-    else:
-        continue
-    sys.argv.remove(i)
-
-print(",".join([i.targetName for i in execs]))
-
-#--------------------------------------------------
-# Options
-#--------------------------------------------------
-print("Setting Build Options...")
-
-def addx(self,i):
-    if i not in self:
-        self.append(i)
-
-def lxml():
-    try: import lxml.html
-    except: return False
-    addx(package,"lxml.html")
-    addx(include,"lxml._elementpath")
-    addx(include,"gzip")
-    addx(include,"inspect")
-    return True
-
-if vlyc in execs:
-    addx(include,"re")
-    addx(include,"io")
-    addx(package,"libyo.compat.features")
-    lxml() or addx(include,"libyo.compat.features.htmlparser_fallback")
-    addx(package,"PyQt4.QtCore")
-    addx(package,"PyQt4.QtGui")
-if afp in execs:
-    addx(include,"re")
-    addx(include,"io")
-    lxml() or addx(include,"libyo.compat.features.htmlparser_fallback")
-if youfeed in execs:
-    addx(include,"re")
-    lxml() or addx(include,"libyo.compat.features.htmlparser_fallback")
-
-if sys.hexversion>0x3000000:
-    addx(package,"libyo.compat.python3")
+try:
+    import lxml.html
+except ImportError:
+    include.append("libyo.compat.feature.htmlparser")
 else:
-    addx(package,"libyo.compat.python2")
+    package.append("lxml.html")
+    include.append("lxml._elementpath")
+    include.append("gzip")
+    include.append("inspect")
+
+if sys.hexversion<0x3000000:
+    package.append("libyo.compat.python2")
 
 options = {"build_exe": {
             "includes": include,
             "excludes": exclude,
             "packages": package,
             "path": [],
-            "optimize":2,
-            "bin_includes":[],
-            "append_script_to_exe":True,
+            "optimize": 2,
+            "bin_includes": [],
+            "append_script_to_exe": True,
             "include_files": files,
+            "create_shared_zip": False,
             }
         }
 
