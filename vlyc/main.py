@@ -33,6 +33,7 @@ sip.setapi("QString", 2)
 
 from PyQt4 import QtCore
 from PyQt4 import QtGui
+from PyQt4 import QtWebKit
 
 import libyo
 from libyo.argparse import LibyoArgumentParser
@@ -173,6 +174,8 @@ class VlycApplication(QtGui.QApplication):
         self.about_dlg = None
         self.last_feed = None
         self.feed_window = None
+        self.web_window = None
+        self.web_view = None
 
         #/---------------------------------------
         # MenuBar Actions
@@ -184,6 +187,7 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.help_about_action.triggered.connect(self.show_about)
         self.main_window.tools_login_action.triggered.connect(self.on_actionLogin_triggered)
         self.main_window.tools_getfeed_action.triggered.connect(self.on_actionGetFeed_triggered)
+        self.main_window.tools_webpage_action.triggered.connect(self.on_actionWebpage_triggered)
 
         #/---------------------------------------
         # Time Toolbar Actions
@@ -303,6 +307,23 @@ class VlycApplication(QtGui.QApplication):
     def on_actionLogin_triggered(self):
         auth.auth(self.main_window)
     
+    def on_actionWebpage_triggered(self):
+        if not self.web_window:
+            #self.web_window = QtGui.QDialog(self.main_window)
+            self.web_view = QtWebKit.QWebView(None)
+            self.web_view.titleChanged.connect(self.web_view.setWindowTitle)
+            self.web_view.linkClicked.connect(self.on_webview_linkClicked)
+            self.web_view.page().setLinkDelegationPolicy(QtWebKit.QWebPage.DelegateAllLinks)
+        self.web_view.load(QtCore.QUrl("http://youtube.com"))
+        self.web_view.show()
+    
+    def on_webview_linkClicked(self, url):
+        if YoutubeHandler.watch_regexp.match(url.toString()):
+            self.player.stop()
+            self._yt_sig_init.emit(url.toString())
+        else:
+            self.web_view.load(url)
+    
     def on_actionGetFeed_triggered(self):
         feed, ok = QtGui.QInputDialog.getText(self.main_window, "Enter feed", "enter the youtube data api v2 feed path relative to http://gdata.youtube.com/feeds/api/", text=self.last_feed if self.last_feed is not None else "")
         if not ok:
@@ -316,6 +337,8 @@ class VlycApplication(QtGui.QApplication):
             self.feed_window.setWindowTitle("Feed: %s" % feed)
             self.feed_window.clear()
             for item in data["data"]["items"]:
+                if "video" in item:
+                    item = item["video"] # playlists use a container around the video
                 li = QtGui.QListWidgetItem(self.feed_window)
                 li.setText(item["title"])
                 li.setData(QtCore.Qt.UserRole, item)

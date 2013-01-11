@@ -171,6 +171,9 @@ class MainWindow(QtGui.QMainWindow):
         
         self.tools_getfeed_action = self.tools_menu.addAction("getFeed")
         self.tools_getfeed_action.setObjectName("tools_getfeed_action")
+        
+        self.tools_webpage_action = self.tools_menu.addAction("open YouTube page")
+        self.tools_webpage_action.setObjectName("tools_webpage_action")
 
         self.help_menu = self.menubar.addMenu("&Help")
         self.help_menu.setObjectName("help_menu")
