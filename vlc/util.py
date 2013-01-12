@@ -82,12 +82,12 @@ class Enum(object):
 
 
 class AutoEnum(Enum):
-    def __init__(self, name, *vals, **vals3):
+    def __init__(self, name, *vals, _inherits=None, _startat=0, **vals3):
         vals2 = dict()
         for i in range(len(vals)):
-            vals2[vals[i]] = i
+            vals2[vals[i]] = i + _startat
         vals2.update(vals3)
-        super(AutoEnum, self).__init__(name, **vals2)
+        super(AutoEnum, self).__init__(name, _inherits=_inherits, **vals2)
 
 #convert a libvlc Enum to our one
 vlcenum = lambda enum: Enum(enum.__name__, **dict([(n, v) for v, n in enum._enum_names_.items()]))

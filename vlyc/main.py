@@ -38,6 +38,7 @@ from PyQt4 import QtWebKit
 import libyo
 from libyo.argparse import LibyoArgumentParser
 from libyo.youtube.gdata import gdata
+from libyo.util.util import sdict_parser
 
 from vlc import player
 from vlc import util
@@ -48,7 +49,7 @@ const.root_logger = logging.getLogger("vlyc.gui")
 from . import version_info, version, codename
 from . import settings
 
-from .ui import MainWindow
+from .mainwindow import MainWindow
 from .ui import FullscreenController
 from .ui import AboutDialog
 
@@ -172,10 +173,14 @@ class VlycApplication(QtGui.QApplication):
         self._yt_uploa = None
         self._yt_is_video = False
         self.about_dlg = None
-        self.last_feed = None
-        self.feed_window = None
         self.web_window = None
         self.web_view = None
+        
+        self.main_window.searchVideoQuery.connect(self.on_mainwindow_searchVideoQuery)
+        self.searchVideoReply.connect(self.main_window.searchVideoResponse)
+        self.main_window.videoFeedQuery.connect(self.on_mainwindow_videoFeedQuery)
+        self.videoFeedReply.connect(self.main_window.videoFeedResponse)
+        self.main_window.videoSelected.connect(self.on_mainwindow_videoSelected)
 
         #/---------------------------------------
         # MenuBar Actions
@@ -186,7 +191,6 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.file_open_stream_action.triggered.connect(self.open_mrl)
         self.main_window.help_about_action.triggered.connect(self.show_about)
         self.main_window.tools_login_action.triggered.connect(self.on_actionLogin_triggered)
-        self.main_window.tools_getfeed_action.triggered.connect(self.on_actionGetFeed_triggered)
         self.main_window.tools_webpage_action.triggered.connect(self.on_actionWebpage_triggered)
 
         #/---------------------------------------
@@ -304,6 +308,39 @@ class VlycApplication(QtGui.QApplication):
     #/-------------------------------------------
     # New UI slots
     #-------------------------------------------/
+    searchVideoReply = QtCore.Signal(list)
+    videoFeedReply = QtCore.Signal(list)
+    
+    @QtCore.Slot("QString")
+    def on_mainwindow_searchVideoQuery(self, q):
+        feed, params = "videos", [("q", q)]
+        data = gdata(feed, params)
+        self.searchVideoReply.emit(self.makeListWidgetItemListFromGDATA(data))
+    
+    @QtCore.Slot("QString")
+    def on_mainwindow_videoFeedQuery(self, feed):
+        parameters = list()
+        if "?" in feed:
+            feed, s = feed.split("?", 1)
+            d = sdict_parser(s)
+            parameters.extend(d.items())
+        self.videoFeedReply.emit(self.makeListWidgetItemListFromGDATA(gdata(feed, parameters)))
+    
+    def makeListWidgetItemListFromGDATA(self, data):
+        lst = list()
+        if "items" in data['data']:
+            for item in data['data']['items']:
+                if "video" in item:
+                    item = item['video']
+                li = QtGui.QListWidgetItem()
+                li.setText(item['title'])
+                #li.setIcon(QtGui.QIcon(item['thumbnail']['hqDefault']))
+                li.setData(QtCore.Qt.UserRole, item)
+                lst.append(li)
+        elif "error" in data:
+            QtGui.QMessageBox.critical(self.main_window, "API Error", data['error'])
+        return lst
+                
     def on_actionLogin_triggered(self):
         auth.auth(self.main_window)
     
@@ -324,29 +361,7 @@ class VlycApplication(QtGui.QApplication):
         else:
             self.web_view.load(url)
     
-    def on_actionGetFeed_triggered(self):
-        feed, ok = QtGui.QInputDialog.getText(self.main_window, "Enter feed", "enter the youtube data api v2 feed path relative to http://gdata.youtube.com/feeds/api/", text=self.last_feed if self.last_feed is not None else "")
-        if not ok:
-            return
-        self.last_feed = feed
-        data = gdata(feed)
-        if "items" in data["data"]:
-            if not self.feed_window:
-                self.feed_window = QtGui.QListWidget()
-                self.feed_window.itemActivated.connect(self.on_feedWindow_itemActivated)
-            self.feed_window.setWindowTitle("Feed: %s" % feed)
-            self.feed_window.clear()
-            for item in data["data"]["items"]:
-                if "video" in item:
-                    item = item["video"] # playlists use a container around the video
-                li = QtGui.QListWidgetItem(self.feed_window)
-                li.setText(item["title"])
-                li.setData(QtCore.Qt.UserRole, item)
-            self.feed_window.show()
-        else:
-            QtGui.QMessageBox.information(self.main_window, "Response", json.dumps(data))
-    
-    def on_feedWindow_itemActivated(self, item):
+    def on_mainwindow_videoSelected(self, item):
         self.player.stop()
         self._yt_sig_initid.emit(item.data(QtCore.Qt.UserRole)["id"])
 
@@ -587,7 +602,7 @@ class VlycApplication(QtGui.QApplication):
                 self.b_fullscreen = False
                 self.main_window.video_widget.setWindowState(
                     self.main_window.video_widget.windowState() & ~QtCore.Qt.WindowFullScreen)
-                self.main_window.root_layout.insertWidget(0, self.main_window.video_widget)
+                self.main_window.videoPage.layout().addWidget(self.main_window.video_widget)
 
     def setFullscreenControls(self, b_show):
         if (b_show and not self.fs_controller):

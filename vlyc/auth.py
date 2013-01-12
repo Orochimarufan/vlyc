@@ -42,7 +42,8 @@ def init():
     yauth.init(client_secrets)
     ok = yauth.login(os.path.join(path, "lastlogin"))
     if ok:
-        logger.info("Found credentials in %s" % yauth._cache)
+        #logger.info("Found credentials in %s" % yauth._cache)
+        logger.info("Found credentials")
         return 0
     return 1
 
