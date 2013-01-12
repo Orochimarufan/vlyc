@@ -29,6 +29,10 @@ import os
 import logging
 logger = logging.getLogger(__name__)
 
+GDATA_KEY = "key=AI39si6a0sWjgQTxxSTfTD58EELNu1olgqEw8C7TDcB8H8wTLI7ZnbDRg5eDNNNKYkBpCMX_NkzWM6ovyMOA_1D5CiDtPp8HVw"
+
+ok = False
+
 
 def init():
     global path, ok
@@ -48,7 +52,7 @@ def init():
     return 1
 
 
-def auth(parent):
+def auth(parent, cb):
     url = yauth.beginAuth()
     window = QtGui.QDialog(parent)
     window.resize(800, 600)
@@ -57,8 +61,8 @@ def auth(parent):
     #logger.info("Url in: '%s'\nUrl enc: '%s'\nUrl str: '%s'" % (url, u.toEncoded(), u.toString()))
     web.load(u)
     
-    def load_callback(ok):
-        if not ok:
+    def load_callback(ok_):
+        if not ok_:
             return
         if web.title().startswith("Success"):
             window.close()
@@ -66,7 +70,10 @@ def auth(parent):
             data = sdict_parser(dct)
             if "code" in data:
                 yauth.finishAuth(data["code"])
+                global ok
+                ok = True
             window.destroy()
+            cb()
     
     web.loadFinished.connect(load_callback)
     window.show()

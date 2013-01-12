@@ -39,6 +39,7 @@ import libyo
 from libyo.argparse import LibyoArgumentParser
 from libyo.youtube.gdata import gdata
 from libyo.util.util import sdict_parser
+from libyo.urllib.request import Request
 
 from vlc import player
 from vlc import util
@@ -172,15 +173,14 @@ class VlycApplication(QtGui.QApplication):
         self._yt_title = None
         self._yt_uploa = None
         self._yt_is_video = False
+        self._yt_id = None
         self.about_dlg = None
         self.web_window = None
         self.web_view = None
         
-        self.main_window.searchVideoQuery.connect(self.on_mainwindow_searchVideoQuery)
-        self.searchVideoReply.connect(self.main_window.searchVideoResponse)
-        self.main_window.videoFeedQuery.connect(self.on_mainwindow_videoFeedQuery)
-        self.videoFeedReply.connect(self.main_window.videoFeedResponse)
         self.main_window.videoSelected.connect(self.on_mainwindow_videoSelected)
+        self.main_window.favoriteVideo.connect(self.on_mainwindow_favoriteVideo)
+        self.main_window.likeVideo.connect(self.on_mainwindow_likeVideo)
 
         #/---------------------------------------
         # MenuBar Actions
@@ -234,9 +234,12 @@ class VlycApplication(QtGui.QApplication):
         # Set up Youtube Thread
         #---------------------------------------/
         # login
-        if(auth.init() == 2):
+        t = auth.init()
+        if t == 2:
             self.main_window.tools_login_action.setEnabled(False)
             QtGui.QMessageBox.information(None, "YouTube Login disabled", "Google services login has been disabled due to missing client_secrets.\nPlease get a Google API key for OAuth2.0 on the YouTube Data API and put the client_secrets into\n%s" % auth.path)
+        elif t == 0:
+            self.main_window.on_user_login()
         # resolver thread
         self.youtube_thread = QtCore.QThread()
         self.init_yt()
@@ -310,39 +313,13 @@ class VlycApplication(QtGui.QApplication):
     #-------------------------------------------/
     searchVideoReply = QtCore.Signal(list)
     videoFeedReply = QtCore.Signal(list)
-    
-    @QtCore.Slot("QString")
-    def on_mainwindow_searchVideoQuery(self, q):
-        feed, params = "videos", [("q", q)]
-        data = gdata(feed, params)
-        self.searchVideoReply.emit(self.makeListWidgetItemListFromGDATA(data))
-    
-    @QtCore.Slot("QString")
-    def on_mainwindow_videoFeedQuery(self, feed):
-        parameters = list()
-        if "?" in feed:
-            feed, s = feed.split("?", 1)
-            d = sdict_parser(s)
-            parameters.extend(d.items())
-        self.videoFeedReply.emit(self.makeListWidgetItemListFromGDATA(gdata(feed, parameters)))
-    
-    def makeListWidgetItemListFromGDATA(self, data):
-        lst = list()
-        if "items" in data['data']:
-            for item in data['data']['items']:
-                if "video" in item:
-                    item = item['video']
-                li = QtGui.QListWidgetItem()
-                li.setText(item['title'])
-                #li.setIcon(QtGui.QIcon(item['thumbnail']['hqDefault']))
-                li.setData(QtCore.Qt.UserRole, item)
-                lst.append(li)
-        elif "error" in data:
-            QtGui.QMessageBox.critical(self.main_window, "API Error", data['error'])
-        return lst
                 
     def on_actionLogin_triggered(self):
-        auth.auth(self.main_window)
+        auth.auth(self.main_window, self.on_auth_done)
+    
+    def on_auth_done(self):
+        if auth.ok:
+            self.main_window.on_user_login()
     
     def on_actionWebpage_triggered(self):
         if not self.web_window:
@@ -364,6 +341,33 @@ class VlycApplication(QtGui.QApplication):
     def on_mainwindow_videoSelected(self, item):
         self.player.stop()
         self._yt_sig_initid.emit(item.data(QtCore.Qt.UserRole)["id"])
+    
+    def on_mainwindow_favoriteVideo(self):
+        body = """<?xml version="1.0" encoding="UTF-8"?>
+                <entry xmlns="http://www.w3.org/2005/Atom">
+                  <id>%s</id>
+                </entry>""" % self._yt_id
+        req = Request("https://gdata.youtube.com/feeds/api/users/default/favorites",
+                      util.vlcstring(body))
+        req.add_header("Content-Type", "application/atom+xml")
+        req.add_header("Content-Length", len(body))
+        req.add_header("GData-Version", "2")
+        req.add_header("X-GData-Key", auth.GDATA_KEY)
+        auth.yauth.urlopen(req)
+    
+    def on_mainwindow_likeVideo(self):
+        body = """<?xml version="1.0" encoding="UTF-8"?>
+                    <entry xmlns="http://www.w3.org/2005/Atom"
+                           xmlns:yt="http://gdata.youtube.com/schemas/2007">
+                      <yt:rating value="like"/>
+                    </entry>"""
+        req = Request("https://gdata.youtube.com/feeds/api/videos/%s/ratings" % self._yt_id,
+                      util.vlcstring(body))
+        req.add_header("Content-Type", "application/atom+xml")
+        req.add_header("Content-Length", len(body))
+        req.add_header("GData-Version", "2")
+        req.add_header("X-GData-Key", auth.GDATA_KEY)
+        auth.yauth.urlopen(req)
 
     #/-------------------------------------------
     # Event Slots
@@ -510,6 +514,7 @@ class VlycApplication(QtGui.QApplication):
     
     def clnupYt(self):
         self._yt_is_video = False
+        self.main_window.shareButton.setEnabled(False)
         self.main_window.subtitle_combo.clear()
         self.main_window.quality_combo.clear()
     
@@ -517,12 +522,14 @@ class VlycApplication(QtGui.QApplication):
     def set_info(self, info):
         self._yt_title = util.vlcstring(info.title)
         self._yt_uploa = util.vlcstring(info.uploader)
+        self._yt_id = info.video_id
         if (self.rdg.isVisible()):
             self.rdg.setText("Opening YouTube Video:\n\"%s\"" % info.title)
     
     def set_url(self, newurl):
         preservepos = self.player.get_state() != self.player.State.Stopped
         self._yt_is_video = True
+        self.main_window.shareButton.setEnabled(True)
         if (preservepos):
             pos = self.player.get_position()
         media = player.getInstance().media_new_location(util.vlcstring(newurl))

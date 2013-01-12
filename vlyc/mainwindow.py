@@ -37,6 +37,9 @@ from .widgets import VideoWidget
 from .widgets import TimeLabel
 from .widgets import PlayButton
 from .settings import Settings
+from . import auth
+from libyo.youtube.gdata import gdata
+from libyo.util.util import sdict_parser
 
 logger = logging.getLogger(__name__)
 
@@ -108,8 +111,52 @@ class MainWindow(QtGui.QMainWindow):
         self.videoSearchResults = QtGui.QListWidget()
         self.videoSearchResults.setObjectName("videoSearchResults")
         self.videoSearchLayout.addWidget(self.videoSearchResults)
+        self.videoSearchMoreButton = QtGui.QPushButton("Load more")
+        self.videoSearchMoreButton.setObjectName("videoSearchMoreButton")
+        self.videoSearchMoreButton.setEnabled(False)
+        self.videoSearchMorePage = 0
+        self.videoSearchMoreQuery = ""
+        self.videoSearchLayout.addWidget(self.videoSearchMoreButton)
         self.videosStack.addWidget(self.videoSearchPage)
         self.videosModeList.addItem("Video Search")
+        
+        # fav page
+        self.page_init_handlers = dict()
+        self.enable_on_login = list()
+        page_gen = """self.{0}Page = QtGui.QWidget()
+self.{0}Page.setObjectName("{0}Page")
+self.{0}Layout = QtGui.QVBoxLayout(self.{0}Page)
+self.{0}Layout.setObjectName("{0}Layout")
+self.{0}Results = QtGui.QListWidget()
+self.{0}Results.setObjectName("{0}Results")
+self.{0}Layout.addWidget(self.{0}Results)
+self.{0}MoreButton = QtGui.QPushButton("Load more")
+self.{0}MoreButton.setObjectName("{0}MoreButton")
+self.{0}MoreButton.setEnabled(False)
+self.{0}MorePage = 0
+self.{0}Layout.addWidget(self.{0}MoreButton)
+self.videosStack.addWidget(self.{0}Page)
+self.videosModeList.addItem("{1}")"""
+        page_impl = """def on_{0}MoreButton_clicked(self):
+    self.{0}MoreButton.setEnabled(False)
+    data = gdata("{1}", [("max-results", 50), ("start-index", str(self.{0}MorePage*50+1))])
+    for i in self.makeListWidgetItemListFromGDATA(data):
+        self.{0}Results.addItem(i)
+    self.{0}MorePage += 1
+    self.{0}MoreButton.setEnabled(True)
+self.on_{0}MoreButton_clicked = on_{0}MoreButton_clicked.__get__(self)
+self.page_init_handlers[self.videosStack.count()-1] = self.on_{0}MoreButton_clicked"""
+        page_my = compile("""i = self.videosModeList.count()-1
+self.videosModeList.item(i).setHidden(True)
+self.enable_on_login.append(i)""", "", "exec")
+        exec (page_gen.format("videoMyFav", "My Favorites"))
+        exec (page_impl.format("videoMyFav", "users/default/favorites"))
+        exec (page_my)
+        
+        # subscriptions
+        exec (page_gen.format("videoSubs", "My Subscriptions"))
+        exec (page_impl.format("videoSubs", "users/default/newsubscriptionvideos"))
+        exec (page_my)
         
         # Feed page
         self.videoFeedPage = QtGui.QWidget()
@@ -178,6 +225,20 @@ class MainWindow(QtGui.QMainWindow):
         self.pageSelectButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.pageSelectButton.setCheckable(True)
         self.control_layout.addWidget(self.pageSelectButton)
+        
+        self.shareButton = QtGui.QToolButton(self.root_widget)
+        self.shareButton.setObjectName("shareButton")
+        self.shareButton.setIcon(QtGui.QIcon(":/buttons/playlist/playlist_add"))
+        self.shareButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.shareButton.setEnabled(False)
+        self.shareMenu = QtGui.QMenu()
+        self.shareMenu.setObjectName("shareMenu")
+        self.shareButton.setMenu(self.shareMenu)
+        self.shareMenuFavoriteAction = self.shareMenu.addAction("Favorite")
+        self.shareMenuFavoriteAction.setObjectName("shareMenuFavoriteAction")
+        self.shareMenuLikeAction = self.shareMenu.addAction("Like")
+        self.shareMenuLikeAction.setObjectName("shareMenuLikeAction")
+        self.control_layout.addWidget(self.shareButton)
         
         self.control_layout.addStretch(120)
 
@@ -269,19 +330,9 @@ class MainWindow(QtGui.QMainWindow):
     #/-----------------------------------------
     # Signals
     #-----------------------------------------/
-    videoFeedQuery = QtCore.Signal("QString")
-    searchVideoQuery = QtCore.Signal("QString")
     videoSelected = QtCore.Signal(QtGui.QListWidgetItem)
-    
-    @QtCore.Slot(list)
-    def searchVideoResponse(self, lst):
-        for i in lst:
-            self.videoSearchResults.addItem(i)
-    
-    @QtCore.Slot(list)
-    def videoFeedResponse(self, lst):
-        for i in lst:
-            self.videoFeedResults.addItem(i)
+    favoriteVideo = QtCore.Signal()
+    likeVideo = QtCore.Signal()
     
     #/-----------------------------------------
     # UI Signal handlers
@@ -290,9 +341,13 @@ class MainWindow(QtGui.QMainWindow):
         QtCore.QMetaObject.connectSlotsByName(self)
         self.videoSearchResults.itemActivated.connect(self.videoSelected)
         self.videoFeedResults.itemActivated.connect(self.videoSelected)
+        self.shareMenuFavoriteAction.triggered.connect(self.favoriteVideo)
+        self.shareMenuLikeAction.triggered.connect(self.likeVideo)
     
     @QtCore.Slot(int)
     def on_videosModeList_currentRowChanged(self, row):
+        if row in self.page_init_handlers:
+            self.page_init_handlers[row]()
         self.videosStack.setCurrentIndex(row)
     
     @QtCore.Slot(int)
@@ -305,12 +360,37 @@ class MainWindow(QtGui.QMainWindow):
     @QtCore.Slot()
     def on_videoSearchButton_clicked(self):
         self.videoSearchResults.clear()
-        self.searchVideoQuery.emit(self.videoSearchInput.text())
+        self.videoSearchMorePage = 0
+        self.videoSearchMoreQuery = self.videoSearchInput.text()
+        self.on_videoSearchMoreButton_clicked()
+    
+    @QtCore.Slot()
+    def on_videoSearchMoreButton_clicked(self):
+        self.videoSearchMoreButton.setEnabled(False)
+        feed, params = "videos", [("q", self.videoSearchMoreQuery),
+                                  ("max-results", "50"),
+                                  ("start-index", str(self.videoSearchMorePage * 50 + 1))]
+        data = gdata(feed, params)
+        for i in self.makeListWidgetItemListFromGDATA(data):
+            self.videoSearchResults.addItem(i)
+        self.videoSearchMorePage += 1
+        self.videoSearchMoreButton.setEnabled(True)
     
     @QtCore.Slot()
     def on_videoFeedButton_clicked(self):
         self.videoFeedResults.clear()
-        self.videoFeedQuery.emit(self.videoFeedInput.text())
+        parameters = list()
+        feed = self.videoFeedInput.text()
+        if "?" in feed:
+            feed, s = feed.split("?", 1)
+            d = sdict_parser(s)
+            parameters.extend(d.items())
+        try:
+            lst = self.makeListWidgetItemListFromGDATA(gdata(feed, parameters))
+        except auth.yauth.request.HTTPError as e:
+            QtGui.QMessageBox.critical(self, "API Error", e.fp.read().decode("utf8"))
+        for i in lst:
+            self.videoFeedResults.addItem(i)
     
     @QtCore.Slot()
     def on_tools_setPage_action_triggered(self):
@@ -325,6 +405,26 @@ class MainWindow(QtGui.QMainWindow):
             self.pageStack.setCurrentIndex(1)
         else:
             self.pageStack.setCurrentIndex(0)
+    
+    def makeListWidgetItemListFromGDATA(self, data):
+        lst = list()
+        if "items" in data['data']:
+            for item in data['data']['items']:
+                if "video" in item:
+                    item = item['video']
+                li = QtGui.QListWidgetItem()
+                li.setText(item['title'])
+                #li.setIcon(QtGui.QIcon(item['thumbnail']['hqDefault']))
+                li.setData(QtCore.Qt.UserRole, item)
+                lst.append(li)
+        elif "error" in data:
+            QtGui.QMessageBox.critical(self.main_window, "API Error", data['error'])
+        return lst
+    
+    @QtCore.Slot()
+    def on_user_login(self):
+        for i in self.enable_on_login:
+            self.videosModeList.item(i).setHidden(False)
 
     #/-------------------------------------------
     # arbitary stuffs
