@@ -41,6 +41,8 @@ from . import auth
 from libyo.youtube.gdata import gdata
 from libyo.util.util import sdict_parser
 
+from . import vlyc2png
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,6 +53,9 @@ class MainWindow(QtGui.QMainWindow):
         #---------------------------------------/
         self.setObjectName("MainWindow")
         self.resize(700, 500)
+        
+        self.icon_pixmap = QtGui.QPixmap.fromImage(QtGui.QImage.fromData(vlyc2png.data))
+        self.setWindowIcon(QtGui.QIcon(self.icon_pixmap))
 
         self.root_widget = QtGui.QWidget(self)
         self.root_widget.setObjectName("root_widget")
@@ -145,7 +150,9 @@ self.videosModeList.addItem("{1}")"""
     self.{0}MorePage += 1
     self.{0}MoreButton.setEnabled(True)
 self.on_{0}MoreButton_clicked = on_{0}MoreButton_clicked.__get__(self)
-self.page_init_handlers[self.videosStack.count()-1] = self.on_{0}MoreButton_clicked"""
+self.page_init_handlers[self.videosStack.count()-1] = self.on_{0}MoreButton_clicked
+self.{0}Results.itemActivated.connect(self.videoSelected)
+self.{0}MoreButton.clicked.connect(self.on_{0}MoreButton_clicked)"""
         page_my = compile("""i = self.videosModeList.count()-1
 self.videosModeList.item(i).setHidden(True)
 self.enable_on_login.append(i)""", "", "exec")
@@ -348,6 +355,7 @@ self.enable_on_login.append(i)""", "", "exec")
     def on_videosModeList_currentRowChanged(self, row):
         if row in self.page_init_handlers:
             self.page_init_handlers[row]()
+            self.page_init_handlers[row] = None
         self.videosStack.setCurrentIndex(row)
     
     @QtCore.Slot(int)
@@ -356,6 +364,9 @@ self.enable_on_login.append(i)""", "", "exec")
             self.videoPage.layout().addWidget(self.video_widget)
         elif i == 1:
             self.videosLeftLayout.addWidget(self.video_widget)
+    
+    def realignVideo(self):
+        self.on_pageStack_currentChanged(self.pageStack.currentIndex())
     
     @QtCore.Slot()
     def on_videoSearchButton_clicked(self):

@@ -609,7 +609,7 @@ class VlycApplication(QtGui.QApplication):
                 self.b_fullscreen = False
                 self.main_window.video_widget.setWindowState(
                     self.main_window.video_widget.windowState() & ~QtCore.Qt.WindowFullScreen)
-                self.main_window.videoPage.layout().addWidget(self.main_window.video_widget)
+                self.main_window.realignVideo()
 
     def setFullscreenControls(self, b_show):
         if (b_show and not self.fs_controller):
