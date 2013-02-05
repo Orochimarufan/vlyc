@@ -355,7 +355,7 @@ self.enable_on_login.append(i)""", "", "exec")
     def on_videosModeList_currentRowChanged(self, row):
         if row in self.page_init_handlers:
             self.page_init_handlers[row]()
-            self.page_init_handlers[row] = None
+            del self.page_init_handlers[row]
         self.videosStack.setCurrentIndex(row)
     
     @QtCore.Slot(int)

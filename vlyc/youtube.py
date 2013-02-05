@@ -106,9 +106,15 @@ class YoutubeHandler(QtCore.QObject):
     def _initYoutubeId(self, video_id):
         #Initialize Video
         try: #We must not allow any Exceptions or the UI will block on the "Resolving Video" Dialog!
-            self.initVideo(video_id)
+            r = self.initVideo(video_id)
         except:
             self.resolveFail.emit("\n".join(traceback.format_exception(*sys.exc_info())))
+            return
+        
+        if r is not None:
+            self.resolveFail.emit(r)
+            return
+        
         #Initialize Subtitles
         try:
             self.initSubtitles(video_id)
@@ -131,7 +137,7 @@ class YoutubeHandler(QtCore.QObject):
         self.logger.debug("Resolving Video: %s" % video_id)
         video_info = resolve.resolve3(video_id)
         if (not video_info):
-            self.resolveFail(self.resolve_message % video_id)
+            return self.resolve_message % video_id
         self.video_info = video_info
         self.newVideoInf.emit(video_info)
         #Create Quality List

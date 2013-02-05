@@ -33,7 +33,6 @@ sip.setapi("QString", 2)
 
 from PyQt4 import QtCore
 from PyQt4 import QtGui
-from PyQt4 import QtWebKit
 
 import libyo
 from libyo.argparse import LibyoArgumentParser
@@ -55,6 +54,7 @@ from .ui import FullscreenController
 from .ui import AboutDialog
 
 from .youtube import YoutubeHandler
+from .browser import WebBrowser
 
 from . import auth
 
@@ -175,8 +175,7 @@ class VlycApplication(QtGui.QApplication):
         self._yt_is_video = False
         self._yt_id = None
         self.about_dlg = None
-        self.web_window = None
-        self.web_view = None
+        self.browser = None
         
         self.main_window.videoSelected.connect(self.on_mainwindow_videoSelected)
         self.main_window.favoriteVideo.connect(self.on_mainwindow_favoriteVideo)
@@ -295,6 +294,10 @@ class VlycApplication(QtGui.QApplication):
         # Collect threads
         #---------------------------------------/
         self.logger.debug("Waiting for Threads to finish...")
+        if self.browser:
+            self.browser.close()
+            self.browser.forceStopNetwork()
+            self.browser.saveCookies()
         self.youtube_thread.quit()
         self.youtube_thread.wait()
 
@@ -322,21 +325,15 @@ class VlycApplication(QtGui.QApplication):
             self.main_window.on_user_login()
     
     def on_actionWebpage_triggered(self):
-        if not self.web_window:
-            #self.web_window = QtGui.QDialog(self.main_window)
-            self.web_view = QtWebKit.QWebView(None)
-            self.web_view.titleChanged.connect(self.web_view.setWindowTitle)
-            self.web_view.linkClicked.connect(self.on_webview_linkClicked)
-            self.web_view.page().setLinkDelegationPolicy(QtWebKit.QWebPage.DelegateAllLinks)
-        self.web_view.load(QtCore.QUrl("http://youtube.com"))
-        self.web_view.show()
+        if not self.browser:
+            self.browser = WebBrowser()
+            self.browser.watch.connect(self.on_browser_watch)
+        self.browser.load("http://youtube.com")
+        self.browser.show()
     
-    def on_webview_linkClicked(self, url):
-        if YoutubeHandler.watch_regexp.match(url.toString()):
-            self.player.stop()
-            self._yt_sig_init.emit(url.toString())
-        else:
-            self.web_view.load(url)
+    def on_browser_watch(self, url):
+        self.player.stop()
+        self._yt_sig_init.emit(url)
     
     def on_mainwindow_videoSelected(self, item):
         self.player.stop()
