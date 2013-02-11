@@ -74,10 +74,20 @@ class VlycApplication(QtGui.QApplication):
     logger_player   = logger.getChild("player")
     logger_event    = logger.getChild("evtmgr")
 
-    def __init__(self, argv=None):
+    def __init__(self, argv=None, wm_class="vlyc"):
         if (argv is None):
             argv = sys.argv
         self.py_argv = argv
+        
+        # FIXME: WM_CLASS in Qt?
+        # X Protocol WM_CLASS Property
+        # Should be constant for one application
+        # Used by WM's for pattern matching and others
+        # Qt takes WM_CLASS from argv[0]
+        # there also is no way to specify
+        #  XClassHint.ref_name and XClassHint.ref_class separately
+        argv[0] = wm_class
+        
         super(VlycApplication, self).__init__(argv)
 
         self.setOrganizationDomain("fanirc.net")
@@ -287,6 +297,7 @@ class VlycApplication(QtGui.QApplication):
             if (self.args.quit_after):
                 self.connect(self, QtCore.SIGNAL("ended()"), self.quit)
         self.logger.debug("Entering Main Loop")
+        
         self.exec_()
         self.logger.info("Terminating")
 
