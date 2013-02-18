@@ -22,19 +22,20 @@
  *****************************************************************************/
 """
 from __future__ import absolute_import, unicode_literals
+
 import sys
 import os
 import logging
 import traceback
-import re
 import collections
 import tempfile
 import io
+
 from PyQt4 import QtCore
+
 from libyo.youtube import resolve
 from libyo.youtube import subtitles
 from libyo.youtube.resolve import profiles
-from libyo.util.util import sdict_parser
 from libyo.youtube import url as yt_url
 
 

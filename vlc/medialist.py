@@ -1,183 +1,170 @@
-"""
-/*****************************************************************************
- * medialist.py : libvlc MediaList(Player) re-implementation
- ****************************************************************************
- * Copyright (C) 2012 Orochimarufan
- *
- * Authors:  Orochimarufan <orochimarufan.x3@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
- *****************************************************************************/
-"""
+#!/usr/bin/python
+#/*****************************************************************************
+# * vlc::medialist
+# ****************************************************************************
+# * Copyright (C) 2012-2013 Orochimarufan
+# *
+# * Authors:  Orochimarufan <orochimarufan.x3@gmail.com>
+# *
+# * This program is free software: you can redistribute it and/or modify
+# * it under the terms of the GNU General Public License as published by
+# * the Free Software Foundation, either version 3 of the License, or
+# * (at your option) any later version.
+# *
+# * This program is distributed in the hope that it will be useful,
+# * but WITHOUT ANY WARRANTY; without even the implied warranty of
+# * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# * GNU General Public License for more details.
+# *
+# * You should have received a copy of the GNU General Public License
+# * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# *****************************************************************************/
+# $created 18 Feb 2013 $
 
 from __future__ import unicode_literals, absolute_import
+
 import logging
-import threading
-from . import libvlc
+
 from . import vlcevent
 
-logger = logging.getLogger("vlc.medialist")
+logger = logging.getLogger(__name__)
 
 
-class MediaList(object):
-    logger = logger.getChild("MediaList")
+class MediaList(list):
+    """
+    Media Interface:
+        get_event_manager()
+        _as_parameter_
+    """
+    Event = vlcevent.MediaListEvent
     
-    def __init__(self, p_inst):
-        self.p_libvlc_instance = p_inst
-        self.p_libvlc_event_manager = vlcevent.PyEventManager(p_inst)
-        self.b_read_only = False
-        #No Event Registration Needed (as of now)
-        self.object_lock = threading.Lock()
-        self.items = list()
-        self.p_md = None
-        #--------------------------------------
-        #Not really necessary
-        self.refcount_lock = threading.Lock()
-        self.i_refcount = 1
+    __logger = logger.getChild(__name__)
     
-    def retain(self):
-        self.refcount_lock.aquire()
-        self.i_refcount += 1
-        self.refcount_lock.release()
-    
-    def release(self):
-        self.refcount_lock.aquire()
-        self.i_refcount -= 1
-        if (self.i_refcount < 0):
-            self.logger.warn("Refcount < 0!")
-        self.refcount_lock.release()
-    
-    #add_file_content(psz_uri) : How to implement?
+    def __init__(self, instance):
+        self.m_instance = instance
+        
+        self.m_eventmanager = vlcevent.PyEventManager()
+        self.m_eventmanager.register_event_types(self.Event.values())
+        
+        super(MediaList, self).__init__()
+        
+        self.m_media = None
+        self.m_readonly = False
     
     def set_media(self, p_md):
-        with self.object_lock:
-            if (self.p_md is not None):
-                self.p_md.release()
-                p_md.retain()
-                self.p_md = p_md
+        """ set the active media """
+        if hasattr(self.m_media, "release"):
+            self.m_media.release()
+        if hasattr(p_md, "retain"):
+            p_md.retain()
+        self.m_media = p_md
     
     def media(self):
-        """
-         * If this media_list comes is a media's subitems,
-         * This holds the corresponding media.
-         * This md is also seen as the information holder for the media_list.
-         * Indeed a media_list can have meta information through this
-         * media.
-        """
-        with self.object_lock:
-            if (self.p_md):
-                return self.p_md
+        """ Get the active media """
+        return self.m_media
     
     def count(self):
-        """ Lock should be held when entering """
-        return len(self.items)
+        """ the lenght of this MediaList """
+        return len(self)
     
     def add_media(self, p_md):
-        """ Lock should be held when entering """
-        if (not self.b_read_only):
+        """ Append a Media to the MediaList """
+        if not self._can_write():
+            return -1
+        self._add_media(p_md)
+        return 0
+    
+    def _add_media(self, p_md):
+        if hasattr(p_md, "retain"):
             p_md.retain()
-            self.notify_item_addition(p_md, self.count(), False)
-            self.items.append(p_md)
-            self.notify_item_addition(p_md, self.count() - 1, True)
-            return True
-        return False
+        self._notify_item_addition(p_md, len(self), False)
+        self.append(p_md)
+        self._notify_item_addition(p_md, len(self) - 1, True)
     
     def insert_media(self, p_md, index):
-        """ Lock should be held when entering """
-        if (not self.b_read_only):
+        """ Insert a Media at a specific Index """
+        if not self._can_write():
+            return -1
+        self._insert_media(p_md, index)
+        return 0
+    
+    def _insert_media(self, p_md, index):
+        if hasattr(p_md, "retain"):
             p_md.retain()
-            self.notify_item_addition(p_md, index, False)
-            self.items.insert(index, p_md)
-            self.notify_item_addition(p_md, index, True)
-            return True
-        return False
+        self._notify_item_addition(p_md, index, False)
+        self.insert(index, p_md)
+        self._notify_item_addition(p_md, index, True)
     
     def remove_index(self, index):
-        """ Lock should be held when entering """
-        if (not self.b_read_only):
-            p_md = self.items[index]
-            self.notify_item_deletion(p_md, index, False)
-            self.items.pop(index)
-            self.notify_item_deletion(p_md, index, True)
+        """ remove a index from the list """
+        if not self._can_write():
+            return -1
+        return self._remove_index(self, index)
+    
+    def _remove_index(self, index):
+        if index < 0 or index >= len(self):
+            #TODO: printerr
+            return -1
+        
+        p_md = self[index]
+        self._notify_item_deletion(p_md, index, False)
+        self.pop(index)
+        self._notify_item_deletion(p_md, index, True)
+        
+        if hasattr(p_md, "release"):
             p_md.release()
-            return True
-        return False
+        
+        return 0
     
     def item_at_index(self, index):
-        """ Lock should be held when entering """
-        p_md = self.items[index]
-        p_md.retain()
-        return p_md
+        """ get the item at index """
+        return self[index]
     
-    def index_of_item(self, p_searched_md):
-        """
-        Lock should be held when entering
-        Warning: Returns first matching item
-        """
-        return self.items.index(p_searched_md)
+    def index_of_item(self, p_md):
+        """ get the index of the item """
+        return self.index(p_md)
     
     def is_readonly(self):
-        return self.b_read_only
+        """ whether this MediaList is read-only """
+        return self.m_readonly
     
     def lock(self):
-        return self.object_lock.aquire()
+        """ stub, python lists handle it """
+        pass
     
     def unlock(self):
-        return self.object_lock.release()
+        """ stub, python lists handle it """
+        pass
     
-    def event_manager(self):
-        """ Event Manager is immutable, so lock neednt be held """
-        return self.p_libvlc_event_manager
+    def get_event_manager(self):
+        """ get the event manager for this MediaList """
+        return self.m_eventmanager
     
-    #Private
-    def notify_item_addition(self, p_md, index, finished):
+    # Private
+    def _notify_item_addition(self, p_md, index, event_happened):
         event = vlcevent.VlcEvent()
-        if (finished):
-            event.type = vlcevent.mlEvent.ItemAdded
+        
+        if event_happened:
+            event.type = self.Event.ItemAdded
             event.u.media_list_item_added.item = p_md
             event.u.media_list_item_added.index = index
         else:
-            event.type = vlcevent.mlEvent.WillAddItem
+            event.type = self.Event.WillAddItem
             event.u.media_list_will_add_item.item = p_md
             event.u.media_list_will_add_item.index = index
-        self.p_libvlc_event_manager.fire(event)
+        
+        self.m_eventmanager.send(event)
     
-    def notify_item_deletion(self, p_md, index, finished):
+    def _notify_item_deletion(self, p_md, index, event_happened):
         event = vlcevent.VlcEvent()
-        if (finished):
-            event.type = vlcevent.mlEvent.ItemDeleted
+        
+        if event_happened:
+            event.type = self.Event.ItemDeleted
             event.u.media_list_item_deleted.item = p_md
             event.u.media_list_item_deleted.index = index
         else:
-            event.type = vlcevent.mlEvent.WillDeleteItem
+            event.type = self.Event.WillDeleteItem
             event.u.media_list_will_delete_item.item = p_md
             event.u.media_list_will_delete_item.index = index
-        self.p_libvlc_event_manager.send(event)
-
-
-class MediaListPlayer(object):
-    def __init__(self):
-        pass
-    
-    def lock(self):
-        self.object_lock.aquire()
-        self.mp_callback_lock.aquire()
-    
-    def unlock(self):
-        self.mp_callback_lock.release()
-        self.object_lock.release()
-    
-    def assert_locked(self):
-        pass
+        
+        self.m_eventmanager.send(event)

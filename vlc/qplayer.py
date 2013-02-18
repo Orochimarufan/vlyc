@@ -23,13 +23,17 @@
 """
 
 from __future__ import absolute_import, unicode_literals
+
 import logging
+
 from PyQt4 import QtCore
+
 from . import libvlc
 from . import vlcevent
 from . import util
+from . import medialistplayer
 
-logger = logging.getLogger("vlc.player")
+logger = logging.getLogger(__name__)
 
 
 def libvlc_version():
@@ -93,7 +97,7 @@ class Player(QtCore.QObject):
         p.EventManager.disconnect(int event_id, callable callback)
     """
     
-    logger = logger.getChild("Player")
+    __logger = logger.getChild("Player")
     
     #/-------------------------------------------------------
     # MediaPlayer State Enum
@@ -211,7 +215,7 @@ class Player(QtCore.QObject):
         return getattr(self.MediaPlayer, name)
 
 
-class CPlayer(Player):
+class MLPlayer(Player):
     """
     Wraps a MediaPlayer and MediaListPlayer into a QObject
     provides Signals for libvlc events
@@ -248,18 +252,28 @@ class CPlayer(Player):
     to connect to the MediaListPlayer use the lpManager instead of mpManager and lpEvent instead of mpEvent
     """
     
+    #signals
+    nextItemSet = QtCore.Signal("PyQt_PyObject")
+    stopped = QtCore.Signal()
+    
     #constructor
     def __init__(self, p_inst=None):
-        super(CPlayer, self).__init__(p_inst)
+        super(MLPlayer, self).__init__(p_inst)
         
-        self.ListPlayer = self.Instance.media_list_player_new()
+        self.ListPlayer = medialistplayer.MediaListPlayer(self.Instance)
         self.ListPlayer.set_media_player(self.MediaPlayer)
         self.MediaList = None
         
-        #Events
-        manager2 = self.ListPlayer.get_event_manager()
-        
-        self.ListPlayerManager = manager2
+        self.ListPlayerManager = self.ListPlayer.get_event_manager()
+        self.ListPlayerManager.connect(vlcevent.MediaListPlayerEvent.Stopped, self.vlcevent_stopped)
+        self.ListPlayerManager.connect(vlcevent.MediaListPlayerEvent.NextItemSet, self.vlcevent_nextItemSet)
+    
+    # signals
+    def vlcevent_stopped(self, event):
+        self.stopped.emit()
+    
+    def vlcevent_nextItemSet(self, event):
+        self.nextItemSet.emit(event.u.media_list_player_next_item_set.item)
     
     #attribute lookup
     def __getattr__(self, name):

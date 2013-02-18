@@ -40,7 +40,7 @@ from libyo.youtube.gdata import gdata
 from libyo.util.util import sdict_parser
 from libyo.urllib.request import Request
 
-from vlc import player
+from vlc import qplayer
 from vlc import util
 from vlc import vlcevent
 
@@ -127,7 +127,7 @@ class VlycApplication(QtGui.QApplication):
                     The Consistency of the Software can not be guaranteed.
                     Please consider upgrading to Python v3.2 or higher (http://python.org)"""\
                                    % sys.version) #@UndefinedVariable
-        #self.logger.info("Python Version: %s"%sys.version)
+        #self.__logger.info("Python Version: %s"%sys.version)
         if (0, 9, 13) > libyo.version_info:
             QtGui.QMessageBox.critical(None, "LibYo Version Alert",
                     """The libyo library version you are using is not supported by this Application: %s
@@ -135,14 +135,14 @@ class VlycApplication(QtGui.QApplication):
                     Please upgrade to libyo v0.9.13 or higher (http://github.com/Orochimarufan/libyo)"""\
                                     % libyo.version)
             return 1
-        #self.logger.info("libyo Version: %s"%libyo.version)
-        if (player.libvlc_hexversion() < 0x020000):
+        #self.__logger.info("libyo Version: %s"%libyo.version)
+        if (qplayer.libvlc_hexversion() < 0x020000):
             QtGui.QMessageBox.warning(None, "libvlc Version Alert",
                     """The libvlc library version you are using is not supported by this Application: %s
                     The software may not be able to run properly.
                     Please consider upgrading to libvlc 2.0.0 or higher (http://videolan.org)"""\
-                                    % player.libvlc_version())
-        self.logger.info("libvlc Version: %s" % player.libvlc_versionstring())
+                                    % qplayer.libvlc_version())
+        self.logger.info("libvlc Version: %s" % qplayer.libvlc_versionstring())
 
         self.logger.info("VideoLan Youtube Client %s '%s'" % (".".join(map(str, version_info)), codename))
 
@@ -162,9 +162,9 @@ class VlycApplication(QtGui.QApplication):
         #---------------------------------------/
         self.main_window = MainWindow()
         if (self.args.vlcargs is not None):
-            if (not player.initInstance(self.args.vlcargs)):
+            if (not qplayer.initInstance(self.args.vlcargs)):
                 return 0 #Help and version will not create an instance and should exit!
-        self.player = player.Player()
+        self.player = qplayer.Player()
         self.main_window.setWindowTitle(self.window_title_1)
         self.player.mediaChanged.connect(self.newMedia)
         self.player.MediaPlayer.video_set_mouse_input(False)
@@ -540,7 +540,7 @@ class VlycApplication(QtGui.QApplication):
         self.main_window.shareButton.setEnabled(True)
         if (preservepos):
             pos = self.player.get_position()
-        media = player.getInstance().media_new_location(util.vlcstring(newurl))
+        media = qplayer.getInstance().media_new_location(util.vlcstring(newurl))
         media.set_meta(0, self._yt_title)
         media.set_meta(1, self._yt_uploa)
         self.player.set_media(media)

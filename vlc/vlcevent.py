@@ -22,19 +22,21 @@
  *****************************************************************************/
 """
 from __future__ import absolute_import, unicode_literals
+
 import logging
 import ctypes
-from collections import defaultdict
+import collections
+
 from . import libvlc
 from . import util
 
-logger = logging.getLogger("vlc.vlcevent")
+logger = logging.getLogger(__name__)
 
 
 #Event Contents
 class _eu_media_list_item_changed(ctypes.Structure):
-    _fields_ = [("item",ctypes.c_void_p),
-                ("index",ctypes.c_long)]
+    _fields_ = [("item", ctypes.c_void_p),
+                ("index", ctypes.c_long)]
 
 
 class EventUnion(ctypes.Union):
@@ -57,6 +59,8 @@ class EventUnion(ctypes.Union):
         ('media_list_will_add_item',    _eu_media_list_item_changed),
         ('media_list_item_deleted',     _eu_media_list_item_changed),
         ('media_list_will_delete_item', _eu_media_list_item_changed),
+        # MediaListPlayer
+        ('media_list_player_next_item_set', _eu_media_list_item_changed),
         # FIXME: SkippedMediaListView...
         ('filename',     ctypes.c_char_p  ),
         ('new_length',   ctypes.c_longlong),
@@ -77,12 +81,12 @@ class BaseEventManager(object):
     A Simple Event Manager
     """
     
-    logger = logger.getChild("EventManager")
+    __logger = logger.getChild(__name__)
     
     def __init__(self):
         super(BaseEventManager, self).__init__()
         self.p_debug = None
-        self.p_callbacks = defaultdict(list)
+        self.p_callbacks = collections.defaultdict(list)
     
     def send(self, event):
         evt = event.type
@@ -171,7 +175,7 @@ class BaseEventManager(object):
 
 
 class PyEventManager(BaseEventManager):
-    __logger = logger.getChild("PyEventManager")
+    __logger = logger.getChild(__name__)
     
     def __init__(self):
         super(PyEventManager, self).__init__()
@@ -195,6 +199,8 @@ class PyEventManager(BaseEventManager):
 
 
 class VlcEventManager(BaseEventManager):
+    __logger = logger.getChild(__name__)
+    
     def __init__(self, player):
         """
         Event Manager for libvlc Objects.
@@ -230,13 +236,13 @@ class VlcEventManager(BaseEventManager):
     def _attach(self, evt):
         r = libvlc.dll.libvlc_event_attach(self.c_man_p, evt, self._handler, None)
         if (r != 0):
-            logger.getChild("EventManager").error("Could not attach event: %i" % evt)
+            self.__logger.error("Could not attach event: %i" % evt)
         self._haveEvent.append(evt)
     
     def _detach(self, evt):
         r = libvlc.dll.libvlc_event_detach(self.c_man_p, evt, self._handler, None)
         if (r != 0):
-            logger.getChild("EventManager").warn("Could not detach event: %i" % evt)
+            self.__logger.warn("Could not detach event: %i" % evt)
         self._haveEvent.remove(evt)
     
     def connect(self, evt, slot):
