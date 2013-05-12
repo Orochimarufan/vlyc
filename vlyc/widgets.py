@@ -49,7 +49,7 @@ class VideoWidget(QtGui.QFrame):
     def request(self, i_x, i_y, i_width, i_height, b_keep_size):
         self.logger.debug("Video was requested %i, %i" % (i_x, i_y))
         if (self._stable):
-            self.logger.debug("Embedded Video already in use")
+            self.logger.warn("Embedded Video already in use")
             return 0
         if (b_keep_size):
             i_width = self.size().width()

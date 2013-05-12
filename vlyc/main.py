@@ -257,8 +257,8 @@ class VlycApplication(QtGui.QApplication):
         #/---------------------------------------
         # libvlc Player embedding
         #---------------------------------------/
-        if (not self.player.get_xwindow()):
-            self.connectPlayer(self.main_window.video_widget.request(self.main_window.video_widget.x(),
+        #if (not self.player.get_xwindow()):
+        self.connectPlayer(self.main_window.video_widget.request(self.main_window.video_widget.x(),
                             self.main_window.video_widget.y(), self.main_window.video_widget.width(),
                             self.main_window.video_widget.height(), True))
 

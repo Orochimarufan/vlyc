@@ -33,13 +33,24 @@ import sys
 
 
 class Enum(object):
-    def __init__(self, name, _inherits=None, **vals):
+    def __init__(self, name, _inherits=None, _dict=None, **vals):
+        # import the _dict
+        if _dict is not None:
+            if not vals:
+                vals = _dict
+            else:
+                vals.update(_dict)
+        
+        # do inheritance
         if (_inherits):
             self.__vals__ = dict(_inherits.__vals__)
             self.__vals__.update(vals)
         else:
             self.__vals__ = vals
+        
         self.__name__ = name
+        
+        # export values into Instance dict
         self.export(self.__dict__)
     
     def __str__(self):
@@ -47,7 +58,7 @@ class Enum(object):
     
     def __repr__(self):
         return "Enum('%s', %s)" % (self.__name__, ", ".join(
-                ["%s=%s" % (n, str(v)) for n, v in self.__vals__.items()]))
+                ["%s=%s" % (n, str(v)) for n, v in sorted(self.__vals__.items(), key=lambda i: i[1])]))
     
     def __contains__(self, other):
         return other in self.__vals__.values()
@@ -82,12 +93,27 @@ class Enum(object):
 
 
 class AutoEnum(Enum):
-    def __init__(self, name, *vals, _inherits=None, _startat=0, **vals3):
+    def __init__(self, name, *vals, _inherits=None, _startat=None, _dict=None, **vals3):
         vals2 = dict()
+        
+        # find the highest number in the inherited Enum and start there,
+        # if no startat was given
+        if _startat is None:
+            if _inherits is not None:
+                _startat = max(_inherits.values()) + 1
+            else:
+                _startat = 0
+        
+        # insert positionals
         for i in range(len(vals)):
             vals2[vals[i]] = i + _startat
+        # insert keywords
         vals2.update(vals3)
-        super(AutoEnum, self).__init__(name, _inherits=_inherits, **vals2)
+        # insert _dict
+        if _dict is not None:
+            vals2.update(_dict)
+        
+        super(AutoEnum, self).__init__(name, _inherits=_inherits, _dict=vals2)
 
 #convert a libvlc Enum to our one
 vlcenum = lambda enum: Enum(enum.__name__, **dict([(n, v) for v, n in enum._enum_names_.items()]))

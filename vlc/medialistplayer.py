@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 class MediaListPlayer(object):
     Event = vlcevent.MediaListPlayerEvent
-    PlaybackMode = util.vlcenum(libvlc.PlaybackMode)
+    PlaybackMode = util.AutoEnum("PlaybackMode", "single", _inherits=util.vlcenum(libvlc.PlaybackMode))
     
     __logger = logger.getChild(__name__)
     
@@ -50,7 +50,7 @@ class MediaListPlayer(object):
         
         instance.retain()
         
-        self.m_playback_mode = libvlc.PlaybackMode.default
+        self.m_playback_mode = self.PlaybackMode.single
     
     def get_event_manager(self):
         return self.m_eventmanager
@@ -117,6 +117,8 @@ class MediaListPlayer(object):
     
     def _next(self, noloop=False):
         if self.m_playback_mode != self.PlaybackMode.repeat or noloop:
+            if self.m_playback_mode == self.PlaybackMode.single:
+                return None
             i = self.m_medialist.index_of_item(self.m_mediaplayer.media()) + 1
             if i >= self.m_medialist.count():
                 if self.m_playback_mode == self.PlaybackMode.loop:

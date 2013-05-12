@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def libvlc_version():
-    return tuple([int(i) for i in libvlc_versionstring().split(" ")[0].split(".")])
+    return tuple([int(i) for i in libvlc_versionstring().split(" ")[0].split("-")[0].split(".")])
 
 
 def libvlc_hexversion():
@@ -60,6 +60,8 @@ def initInstance(argv=None):
     if (_instance):
         raise libvlc.VLCException("libvlc already initialized!")
     _instance = libvlc.Instance(*argv)
+    if not _instance:
+        raise RuntimeError("Could not initialize libVLC")
     return not not _instance
 
 
@@ -68,6 +70,8 @@ def getInstance():
     if (not _instance):
         #_instance = libvlc.Instance()
         _instance = libvlc.libvlc_new(0, None)
+        if not _instance:
+            raise RuntimeError("Could not initialize libVLC")
     return _instance
 
 

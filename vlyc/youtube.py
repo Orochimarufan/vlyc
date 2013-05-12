@@ -37,6 +37,8 @@ from libyo.youtube import resolve
 from libyo.youtube import subtitles
 from libyo.youtube.resolve import profiles
 from libyo.youtube import url as yt_url
+from libyo.compat import etree
+from libyo import urllib
 
 
 class YoutubeHandler(QtCore.QObject):
@@ -228,3 +230,8 @@ class YoutubeHandler(QtCore.QObject):
         """
         if (self.subtitle_file):
             self.subsfileSet.emit(self.subtitle_file)
+    
+    #/-------------------------------------------
+    # Annotation Handling
+    #-------------------------------------------/
+    # TODO
