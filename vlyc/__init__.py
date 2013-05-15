@@ -22,10 +22,10 @@
  *****************************************************************************/
 """
 
-version_info = (0, 1, 8)
+version_info = (0, 1, 9)
 codename = "Twoflower"
-version = "0.1.8 Twoflower"
-date = (2013, 1, 12)
+version = "0.1.9 Twoflower"
+date = (2013, 5, 12)
 
 # import Qt
 # PySide is broken right now, QStyle.drawComplexControl() gets wrong QStyleOptionComplex Subclass

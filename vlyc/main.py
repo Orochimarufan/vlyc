@@ -36,8 +36,6 @@ from PyQt4 import QtGui
 
 import libyo
 from libyo.argparse import LibyoArgumentParser
-from libyo.youtube.gdata import gdata
-from libyo.util.util import sdict_parser
 from libyo.urllib.request import Request
 
 from vlc import qplayer
@@ -57,8 +55,6 @@ from .youtube import YoutubeHandler
 from .browser import WebBrowser
 
 from . import auth
-
-import json
 
 
 class VlycApplication(QtGui.QApplication):
@@ -286,7 +282,7 @@ class VlycApplication(QtGui.QApplication):
             self.logger.info("Opening '%s'" % init_mrl)
             if (YoutubeHandler.watch_regexp.match(init_mrl)):
                 #we got a youtube url
-                self._yt_sig_init.emit(init_mrl)
+                self._yt_init_url.emit(init_mrl)
             else:
                 #try to open it
                 self.player.open(self.args.init_mrl)
@@ -344,11 +340,11 @@ class VlycApplication(QtGui.QApplication):
     
     def on_browser_watch(self, url):
         self.player.stop()
-        self._yt_sig_init.emit(url)
+        self._yt_init_url.emit(url)
     
     def on_mainwindow_videoSelected(self, item):
         self.player.stop()
-        self._yt_sig_initid.emit(item.data(QtCore.Qt.UserRole)["id"])
+        self._yt_init_id.emit(item.data(QtCore.Qt.UserRole)["id"])
     
     def on_mainwindow_favoriteVideo(self):
         body = """<?xml version="1.0" encoding="UTF-8"?>
@@ -426,7 +422,7 @@ class VlycApplication(QtGui.QApplication):
         #self.main_window.sound_widget.libUpdateVolume(self.player.audio_get_volume())
         #self.main_window.sound_widget.updateMuteStatus(self.player.audio_get_mute())
         if (self._yt_is_video):
-            self._yt_sig_anns.emit()
+            self._yt_get_subs.emit()
         return x
     
     def stop(self):
@@ -475,29 +471,32 @@ class VlycApplication(QtGui.QApplication):
     #/-------------------------------------------
     # youtube
     #-------------------------------------------/
-    _yt_sig_init = QtCore.pyqtSignal("QString")
-    _yt_sig_initid = QtCore.pyqtSignal("QString")
-    _yt_sig_qual = QtCore.pyqtSignal("QString")
-    _yt_sig_subs = QtCore.pyqtSignal(int)
-    _yt_sig_anns = QtCore.pyqtSignal()
+    _yt_init_url = QtCore.pyqtSignal("QString")
+    _yt_init_id = QtCore.pyqtSignal("QString")
+    _yt_set_qual = QtCore.pyqtSignal("QString")
+    _yt_set_subs = QtCore.pyqtSignal(int)
+    _yt_get_subs = QtCore.pyqtSignal()
     
     def init_yt(self):
         self.youtube = YoutubeHandler()
         self.youtube_thread.started.connect(lambda: self.youtube.logger.debug("YoutubeThread started"))
         self.youtube_thread.terminated.connect(self.youtube.cleanupSubtitles)
-        self._yt_sig_init.connect(self.youtube.initYoutube)
-        self._yt_sig_initid.connect(self.youtube.initYoutubeId)
-        self._yt_sig_qual.connect(self.youtube.setQuality)
-        self._yt_sig_subs.connect(self.youtube.setSubtitleTrack)
-        self._yt_sig_anns.connect(self.youtube.reannounceSubtitles)
-        self.youtube.newVideoInf.connect(self.set_info)
-        self.youtube.videoUrlSet.connect(self.set_url)
-        self.youtube.subsfileSet.connect(self.set_sub)
-        self.youtube.resolveBegn.connect(self.rdg_show)
-        self.youtube.resolveDone.connect(self.rdg_hide)
-        self.youtube.resolveFail.connect(self.rdg_fail)
-        self.youtube.qualityList.connect(self.set_qlist)
-        self.youtube.newSubsList.connect(self.set_slist)
+        
+        self._yt_init_url.connect(self.youtube.fromUrl)
+        self._yt_init_id.connect(self.youtube.fromId)
+        self._yt_set_qual.connect(self.youtube.setQuality)
+        self._yt_set_subs.connect(self.youtube.setSubtitleTrack)
+        self._yt_get_subs.connect(self.youtube.reannounceSubtitles)
+        
+        self.youtube.newVideo.connect(self.set_info)
+        self.youtube.setUrl.connect(self.set_url)
+        self.youtube.setSub.connect(self.set_sub)
+        self.youtube.started.connect(self.rdg_show)
+        self.youtube.finished.connect(self.rdg_hide)
+        self.youtube.failed.connect(self.rdg_fail)
+        self.youtube.fmtList.connect(self.set_qlist)
+        self.youtube.subList.connect(self.set_slist)
+        
         self.youtube.moveToThread(self.youtube_thread)
         
     #Thread Delegations
@@ -505,11 +504,11 @@ class VlycApplication(QtGui.QApplication):
         url, ok = QtGui.QInputDialog.getText(self.main_window, "Open YouTube URL", "Enter a YouTube Vide URL")
         if (ok):
             self.player.stop()
-            self._yt_sig_init.emit(url)
+            self._yt_init_url.emit(url)
     
     def ChangeQuality(self, str_qa):
         if (not self.uilock):
-            self._yt_sig_qual.emit(str_qa)
+            self._yt_set_qual.emit(str_qa)
     
     def ChangeSubTrack(self, i_pos):
         if (self.uilock):
@@ -518,7 +517,7 @@ class VlycApplication(QtGui.QApplication):
             self.player.video_set_spu(0)
         else:
             i_pos -= 1
-            self._yt_sig_subs.emit(i_pos)
+            self._yt_set_subs.emit(i_pos)
     
     def clnupYt(self):
         self._yt_is_video = False
