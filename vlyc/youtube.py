@@ -78,7 +78,7 @@ class Resolve(QtCore.QObject):
             self.error.emit(error.text.strip())
             return False
         # get the player config
-        src = div[2].text
+        src = div[3].text
         fvars = src[src.index("ytplayer.config = {") + 18:src.rindex("}") + 1]
         try:
             data = json.loads(fvars, strict=False)
