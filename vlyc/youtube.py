@@ -24,11 +24,13 @@
 from __future__ import absolute_import, unicode_literals
 
 import os
+import sys
 import logging
 import collections
 import tempfile
 import io
 import json
+import traceback
 
 from PyQt4 import QtCore
 
@@ -44,49 +46,95 @@ from libyo import urllib
 UserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.4 (KHTML, like Gecko) Chrome/22.0.1229.79 Safari/537.4"
 
 
+def xt(elem, id, mod=lambda it: it):
+    xt = elem.get_element_by_id(id)
+    if xt is None:
+        return None
+    xt = mod(xt)
+    t = xt.text
+    if t is not None:
+        return t.strip()
+
+
 class Resolve(QtCore.QObject):
     """ VLYC's own resolver """
-    
+
     error = QtCore.Signal(str)
-    
+
     def __init__(self, video_id):
         super(Resolve, self).__init__()
         self.video_id = video_id
+        # load
+        self.document = None
+        # resolve (+title)
+        self.urlmap = None
+        # get_subs
+        self.submap = None
+        # get:info
         self.title = None
         self.uploader = None
-        self.urlmap = None
-        self.submap = None
         self.description = None
-        self.done = False
-    
-    def resolve(self):
-        """ Resolve the video """
+        self.date = None
+        self.views = None
+        self.likes = None
+        self.dislikes = None
+        # get_related
+        self.related = None
+        # avoid duplicate work!
+        self.done = set()
+
+    def load(self):
+        """ load the page """
+        if "load" in self.done:
+            return True
+
         req = urllib.request.Request("http://youtube.com/watch?v=%s&gl=US&hl=en&has_verified=1" % self.video_id)
         req.add_header("User-Agent", UserAgent)
         req.add_header("Referer", "http://youtube.com")
         with auth.urlopen(req) as fp:
-            document = htmlparser.parse(fp)
+            self.document = htmlparser.parse(fp)
+
+        self.done.add("load")
+        return True
+
+    def resolve(self):
+        """ Resolve the video """
+        if "resolve" in self.done:
+            return True
+        # load the page
+        if not self.load():
+            return False
+
         # same as WebBackend
-        page = document.getroot()
+        page = self.document.getroot()
         div = page.get_element_by_id("player")
         # See if youtube shows an error message
         try:
-            error = div.get_element_by_id("unavailable-message")
+            error_ = div.get_element_by_id("unavailable-message")
         except:
-            error = None
-        if error is not None:
-            self.error.emit(error.text.strip())
+            error_ = None
+
+        def error(e):
+            if error_ is not None:
+                self.error.emit(error_.text.strip() + "\n\n(" + e + ")")
+            else:
+                self.error.emit(e)
             return False
+
         # get the player config
-        src = div[3].text
-        fvars = src[src.index("ytplayer.config = {") + 18:src.rindex("}") + 1]
+        for script in div.iterfind(".//script"):
+            if script.text is not None and "ytplayer.config" in script.text:
+                fvars = script.text[script.text.index("ytplayer.config = {") + 18:script.text.rindex("}") + 1]
+                break
+        else:
+            return error("Could not get flashvars")
         try:
             data = json.loads(fvars, strict=False)
         except:
             with tempfile.NamedTemporaryFile("w", suffix=".json", prefix="vlyc", delete=False) as fp:
                 fp.write(fvars)
-            self.error.emit("Could not parse flashvars. See %s" % fp.name)
-            return False
+            return error("Could not parse flashvars. See %s" % fp.name)
+
         args = data["args"]
         # extract info
         self.urlmap = dict(
@@ -99,18 +147,87 @@ class Resolve(QtCore.QObject):
             ]
         )
         self.title = args["title"]
-        self.uploader = page.get_element_by_id("watch7-user-header")[1].text
-        self.description = page.get_element_by_id("eow-description").text
+
         # Done
-        self.done = True
+        self.done.add("resolve")
         return True
-    
+
+    def get_info(self):
+        """ get some info on the video """
+        # might already know everything
+        if "info" in self.done:
+            return True
+        # look them up otherwise
+        if not self.load():
+            return False
+
+        page = self.document.getroot()
+        # basic data
+        self.title      = xt(page, "eow-title")
+        self.uploader   = xt(page, "watch7-user-header", lambda it: it[1])
+        self.description = xt(page, "eow-description")
+        self.date       = xt(page, "eow-date")
+        self.category   = xt(page, "eow-category")
+        # counts
+        views           = page.get_element_by_id("watch7-views-info")
+        try:
+            self.views  = int(views[0].text.strip().replace(",", ""))
+        except:
+            self.views  = 0
+        try:
+            self.likes  = int(views.find_class("likes-count")[0].text.strip().replace(",", ""))
+        except:
+            self.likes  = 0
+        try:
+            self.dislikes   = int(views.find_class("dislikes-count")[0].text.strip().replace(",", ""))
+        except:
+            self.dislikes   = 0
+
+        # done
+        self.done.add("info")
+        return True
+
+    def get_related(self):
+        """ get the related videos """
+        if "related" in self.done:
+            return True
+        if not self.load():
+            return False
+
+        self.related = [
+            {
+                "video_id":     entry.get("href").lstrip("/watch?v="),
+                "thumbnail":    entry.find_class("yt-thumb-clip-inner")[0][0].get("src"),
+                "time":         entry.find_class("video-time")[0].text,
+                "title":        entry.find_class("title")[0].text,
+                "uploader":     entry.find_class("yt-user-name")[0].text,
+                "views":        int(entry.find_class("view-count")[0].text.rstrip(" views").replace(",", ""))
+            }
+            for entry in self.document.getroot().get_element_by_id("watch-related").find_class("related-video")
+        ]
+
+        self.done.add("related")
+        return True
+
     def get_subs(self):
         """ get the subtitles """
+        # check if we alreafy know the subtitles
+        if "subs" in self.done:
+            return True
+
+        # get then
         self.submap = subtitles.getTracks(self.video_id)
-    
+
+        self.done.add("subs")
+        return True
+
     def resolve_libyo(self):
         """ ask libyo to resolve. """
+        # check if we already have the data
+        if "resolve" in self.done:
+            return True
+
+        # get it from libyo otherwise
         info = resolve.resolve3(self.video_id)
         if not info:
             self.error.emit("Could not find out about video %s using libyo" % self.video_id)
@@ -119,7 +236,8 @@ class Resolve(QtCore.QObject):
         self.description = info["description"]
         self.uploader = info["uploader"]
         self.urlmap = info["fmt_url_map"]
-        self.done = True
+
+        self.done.add("resolve")
         return True
 
 
@@ -174,14 +292,20 @@ class YoutubeHandler(QtCore.QObject):
             self.logger.debug("url error", exc_info=True)
             self.failed.emit(self.invalid_message % url)
             return
-        self.run(video_id)
+        try:
+            self.run(video_id)
+        except Exception:
+            self.failed.emit("\r\n".join(traceback.format_exception(*sys.exc_info())))
     
     @QtCore.Slot(str)
     def fromId(self, video_id):
         """ Load a YouTube Video by it's ID """
         self.logger.info("Initializing Video from ID: %s" % video_id)
         self.started.emit()
-        self.run(video_id)
+        try:
+            self.run(video_id)
+        except Exception:
+            self.failed.emit("\r\n".join(traceback.format_exception(*sys.exc_info())))
     
     def run(self, video_id):
         """ Do the Actual Work """
@@ -194,8 +318,9 @@ class YoutubeHandler(QtCore.QObject):
             self.video.resolve_libyo()
         else:
             self.video.resolve()
+            self.video.get_info()
         
-        if not self.video.done:
+        if "resolve" not in self.video.done:
             return
         
         self.newVideo.emit(self.video)
